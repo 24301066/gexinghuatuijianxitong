@@ -89,3 +89,35 @@ def test_read_version_returns_package_version():
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 def test_activate_existing_window_returns_false_for_missing_title():
     assert app_core.activate_existing_window("没有这个窗口标题-DSH-probe") is False
+
+
+def test_start_server_falls_back_to_next_data_dir(tmp_path, monkeypatch):
+    """A directory can pass the write probe yet fail at the first SQLite commit."""
+    import threading
+
+    from sqlalchemy.exc import OperationalError
+
+    from app import config as app_config
+
+    import main as desktop_main
+
+    monkeypatch.setattr(desktop_main, "log_lines", lambda *args, **kwargs: [])
+    monkeypatch.setattr(app_config, "is_writable", lambda path: True)
+    candidates = [tmp_path / "first", tmp_path / "second"]
+    monkeypatch.setattr(app_config, "data_dir_candidates",
+                        lambda explicit=None, portable_first=False: candidates)
+
+    calls: list[Path] = []
+
+    def fake_start(candidate, port):
+        calls.append(candidate)
+        if len(calls) == 1:
+            raise OperationalError("INSERT INTO events", {},
+                                   Exception("unable to open database file"))
+        return object(), threading.Thread(target=lambda: None)
+
+    monkeypatch.setattr(desktop_main, "start_server", fake_start)
+
+    _, _, chosen = desktop_main.start_server_with_fallback(12345)
+    assert chosen == tmp_path / "second"
+    assert calls == candidates

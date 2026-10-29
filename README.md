@@ -18,7 +18,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 dist\GexingTuijian\GexingTuijian.exe
 ```
 
-首次启动会在 `%APPDATA%\GexingTuijian` 建库并灌演示数据，断网可用。
+首次启动会自动建库并灌演示数据，断网可用。数据目录优先用 `<exe 所在目录>\data`（便携），不可写时依次回落到 `%LOCALAPPDATA%`、`%APPDATA%` 等；也可以用 `--data-dir` 指定。
 渲染细节与兜底逻辑见 [docs/桌面应用.md](docs/桌面应用.md)。
 
 ### 2. 源码模式跑桌面壳

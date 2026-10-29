@@ -12,7 +12,12 @@ from .models import Base
 
 
 def make_engine(db_url: str) -> Engine:
-    connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
+    connect_args: dict = {}
+    if db_url.startswith("sqlite"):
+        # 30s busy timeout: antivirus or a second handle can briefly lock the file
+        # right after it is created (first run), which would otherwise surface as
+        # "database is locked" during seeding.
+        connect_args = {"check_same_thread": False, "timeout": 30}
     return create_engine(db_url, connect_args=connect_args, future=True)
 
 
