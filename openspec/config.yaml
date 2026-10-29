@@ -1,0 +1,37 @@
+schema: spec-driven
+
+context: |
+  Language: zh-CN
+  All artifacts must be written in zh-CN.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  项目：电商个性化推荐系统（演示站，仓库 24301066/gexinghuatuijianxitong，默认分支 main）。
+  技术栈：Python 3.12 + FastAPI + SQLAlchemy 2 + SQLite（backend/），Vue 3 + Vite（web/）。
+  推荐算法：item-CF + TF-IDF 内容相似 + 时间衰减热门，三路归一化加权融合，MMR 多样性重排，冷启动与降级兜底。
+  接口前缀：/api/v1；鉴权：演示账号 + HS256 JWT；请求追踪：X-Request-ID。
+  数据：确定性生成的演示数据集（明确标注为演示数据），另提供 CSV 导入入口接入真实数据。
+  离线评估：按事件时间切分，输出 Recall@K / NDCG@K / Coverage / Novelty 报告。
+  约束：不依赖云数据库与外网数据集；服务地址从环境变量读，不硬编码；界面不得伪造数据，空状态就展示空状态。
+  运行：本机 git 直连 GitHub 的 pack 传输不可用，推送走 GitHub Git Data API。
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
