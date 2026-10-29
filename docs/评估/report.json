@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-10-29T15:50:07",
+  "dataset": {
+    "fingerprint": "97387ee81191a667",
+    "events": 9174,
+    "items": 400,
+    "users": 200
+  },
+  "split": {
+    "ratio": 0.8,
+    "train": 7339,
+    "test": 1835,
+    "cutoff": "2026-10-19 06:47:46.298150"
+  },
+  "cutoffs": [
+    5,
+    10
+  ],
+  "strategies": {
+    "popular": {
+      "users": 200,
+      "recall@5": 0.0119,
+      "ndcg@5": 0.0183,
+      "recall@10": 0.0254,
+      "ndcg@10": 0.022,
+      "coverage": 0.045,
+      "novelty": 8.8626
+    },
+    "hybrid": {
+      "users": 200,
+      "recall@5": 0.0278,
+      "ndcg@5": 0.0517,
+      "recall@10": 0.0378,
+      "ndcg@10": 0.0448,
+      "coverage": 0.9,
+      "novelty": 8.8836
+    }
+  },
+  "config": {
+    "weights": {
+      "cf": 0.5,
+      "content": 0.3,
+      "popular": 0.2
+    },
+    "diversity": {
+      "lambda": 0.7,
+      "max_category_ratio": 0.4
+    }
+  },
+  "runtime_seconds": 89.04
+}

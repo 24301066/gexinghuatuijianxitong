@@ -1,0 +1,67 @@
+const BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
+
+function token() {
+  return localStorage.getItem('gt_token') || ''
+}
+
+export class ApiError extends Error {
+  constructor(message, status, code, requestId) {
+    super(message)
+    this.status = status
+    this.code = code
+    this.requestId = requestId
+  }
+}
+
+async function request(path, { method = 'GET', body, auth = true } = {}) {
+  const headers = { 'Content-Type': 'application/json' }
+  const bearer = token()
+  if (auth && bearer) headers.Authorization = `Bearer ${bearer}`
+
+  let response
+  try {
+    response = await fetch(`${BASE}/api/v1${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body)
+    })
+  } catch (error) {
+    throw new ApiError('网络不可用，请检查服务是否在运行', 0, 'network_error', '')
+  }
+
+  let payload = {}
+  try {
+    payload = await response.json()
+  } catch (error) {
+    payload = {}
+  }
+
+  if (!response.ok) {
+    throw new ApiError(
+      payload.message || `请求失败（HTTP ${response.status}）`,
+      response.status,
+      payload.code || 'error',
+      payload.request_id || response.headers.get('X-Request-ID') || ''
+    )
+  }
+  return payload
+}
+
+export const api = {
+  login: (username, password) =>
+    request('/auth/login', { method: 'POST', body: { username, password }, auth: false }),
+  me: () => request('/auth/me'),
+  profile: () => request('/me/profile'),
+  health: () => request('/health', { auth: false }),
+  items: ({ category = '', page = 1, size = 20 } = {}) => {
+    const query = new URLSearchParams({ page, size })
+    if (category) query.set('category', category)
+    return request(`/items?${query.toString()}`, { auth: false })
+  },
+  item: (itemId) => request(`/items/${encodeURIComponent(itemId)}`, { auth: false }),
+  similar: (itemId, size = 8) =>
+    request(`/items/${encodeURIComponent(itemId)}/similar?size=${size}`),
+  recommendations: (size = 10, page = 1) => request(`/recommendations?size=${size}&page=${page}`),
+  postEvent: (itemId, type, rating) =>
+    request('/events', { method: 'POST', body: { item_id: itemId, type, rating } })
+}
