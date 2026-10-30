@@ -7,6 +7,7 @@ venv/
 .mypy_cache/
 .ruff_cache/
 .tmp/
+.data/
 *.log
 
 # 打包产物

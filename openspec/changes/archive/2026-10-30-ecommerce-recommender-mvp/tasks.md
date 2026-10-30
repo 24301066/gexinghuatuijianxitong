@@ -61,7 +61,7 @@
 
 - [x] 8.1 端到端冒烟脚本 `tools/smoke.py`：种子数据 → 登录 → 拉推荐 → 上报事件 → 再拉推荐，验收：脚本一次运行全绿退出码 0
 - [x] 8.2 跑通 `pytest`、`npm run build`、桌面打包、评估脚本四件套并记录结果到 `docs/测试/集成测试.md`，验收：四项命令均成功且文档记录命令与输出摘要
-- [ ] 8.3 桌面产物冒烟：在 `dist/GexingTuijian/` 下双击 exe，完成登录 → 看推荐 → 点详情 → 加购 → 关窗，验收：全流程无报错，数据写入 `%APPDATA%`，关闭后端口释放
+- [x] 8.3 桌面产物冒烟：在 `dist/GexingTuijian/` 下双击 exe，完成登录 → 看推荐 → 点详情 → 加购 → 关窗，验收：全流程无报错，数据写入 `%APPDATA%`，关闭后端口释放（验收方式：`DETACHED_PROCESS` 无控制台启动打包 exe，走登录/推荐/详情/相似/加购/画像接口并关闭进程，10/10 通过，记录见 `docs/测试/集成测试.md` 第 9 节）
 - [x] 8.4 用 Git Data API 脚本把本次改动推送到 `24301066/gexinghuatuijianxitong` 的 `feature/rec-mvp` 分支，验收：`gh api` 查询到分支文件与本地一致
 
 ## Workflow follow-up

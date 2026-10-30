@@ -76,14 +76,136 @@ class Settings:
         return "rec-" + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:10]
 
 
-def default_data_dir() -> Path:
-    override = os.environ.get("APP_DATA_DIR")
-    if override:
-        return Path(override).expanduser()
+class DataDirError(RuntimeError):
+    """No writable data directory was found."""
+
+    def __init__(self, tried: list[Path]) -> None:
+        self.tried = tried
+        super().__init__("没有可写的数据目录：" + "; ".join(str(path) for path in tried))
+
+
+def is_writable(path: Path) -> bool:
+    """Prove the directory works for a SQLite database, not just for one file.
+
+    SQLite creates and *deletes* a rollback journal on every transaction, so a
+    directory that allows writes but denies deletes (e.g. an ACL inherited from a
+    sandboxed parent folder) looks writable yet breaks at the first commit with
+    ``sqlite3.OperationalError: unable to open database file``.
+    """
+    import sqlite3
+
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe = path / ".write-probe"
+        probe.write_text("probe", encoding="utf-8")
+        probe.unlink()
+    except OSError:
+        return False
+
+    db_file = path / ".probe.db"
+    try:
+        connection = sqlite3.connect(str(db_file), timeout=5)
+        try:
+            connection.execute("CREATE TABLE probe (x INTEGER)")
+            connection.execute("INSERT INTO probe (x) VALUES (1)")
+            connection.commit()
+            connection.execute("DELETE FROM probe")
+            connection.commit()
+        finally:
+            connection.close()
+        db_file.unlink()
+        for suffix in ("-journal", "-wal", "-shm"):
+            sidecar = db_file.with_name(db_file.name + suffix)
+            if sidecar.exists():
+                sidecar.unlink()
+        return True
+    except (OSError, sqlite3.Error):
+        for suffix in ("", "-journal", "-wal", "-shm"):
+            leftover = db_file.with_name(db_file.name + suffix) if suffix else db_file
+            try:
+                leftover.unlink()
+            except OSError:
+                pass
+        return False
+
+
+def _frozen() -> bool:
+    return bool(getattr(os.sys, "frozen", False)) and hasattr(os.sys, "_MEIPASS")
+
+
+def _portable_dir() -> Path:
+    if _frozen():
+        return Path(os.sys.executable).resolve().parent / "data"
+    return Path(__file__).resolve().parents[2] / ".data"
+
+
+def data_dir_candidates(explicit: Path | None = None,
+                        portable_first: bool = False) -> list[Path]:
+    """Usable candidates in priority order.
+
+    1. explicit argument / APP_DATA_DIR
+    2. legacy ``%APPDATA%/GexingTuijian`` when it already holds a database
+    3. portable ``<exe dir>/data`` (only when explicitly requested)
+    4. ``%LOCALAPPDATA%``, ``%APPDATA%``, ``~``, ``%TEMP%``
+    5. portable ``<exe dir>/data`` as a late fallback
+
+    ``%LOCALAPPDATA%`` comes before the portable directory on purpose: an exe
+    living in a protected or ACL-restricted folder (Documents, Program Files, or a
+    folder created by another tool) cannot host a SQLite database, because SQLite
+    needs to delete its journal file on every commit.
+    """
+    candidates: list[Path] = []
+    if explicit:
+        candidates.append(Path(explicit).expanduser())
+    env = os.environ.get("APP_DATA_DIR")
+    if env:
+        candidates.append(Path(env).expanduser())
+
     appdata = os.environ.get("APPDATA")
-    if appdata:
-        return Path(appdata) / "GexingTuijian"
-    return Path.home() / ".gextuijian"
+    legacy = Path(appdata) / "GexingTuijian" if appdata else None
+    if legacy and (legacy / "app.db").is_file():
+        candidates.append(legacy)
+
+    portable = _portable_dir()
+    if portable_first:
+        candidates.append(portable)
+
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        candidates.append(Path(local) / "GexingTuijian")
+    if legacy:
+        candidates.append(legacy)
+    candidates.append(Path.home() / "GexingTuijian")
+    temp = os.environ.get("TEMP") or os.environ.get("TMP")
+    if temp:
+        candidates.append(Path(temp) / "GexingTuijian")
+    if not portable_first:
+        candidates.append(portable)
+
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(candidate)
+    return unique
+
+
+def resolve_data_dir(explicit: Path | None = None,
+                     candidates: list[Path] | None = None,
+                     portable_first: bool = False) -> Path:
+    tried: list[Path] = []
+    pool = candidates if candidates is not None else data_dir_candidates(explicit, portable_first)
+    for candidate in pool:
+        tried.append(candidate)
+        if is_writable(candidate):
+            return candidate
+    raise DataDirError(tried)
+
+
+def default_data_dir() -> Path:
+    return resolve_data_dir()
 
 
 def load_rec_config(path: Path | None = None) -> dict:
