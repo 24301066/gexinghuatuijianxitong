@@ -63,7 +63,7 @@ $uninstall = Join-Path $programDst 'Uninstall DeepSeek Harness.exe'
 Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
     ForEach-Object {
         $props = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
-        if ($props.DisplayName -like 'DeepSeek Harness*' -and $props.InstallLocation) {
+        if ($props.DisplayName -eq 'DeepSeek Harness' -and $props.InstallLocation) {
             Set-ItemProperty -Path $_.PSPath -Name 'InstallLocation' -Value $programDst
             Set-ItemProperty -Path $_.PSPath -Name 'UninstallString' -Value "`"$uninstall`" /currentuser"
             Set-ItemProperty -Path $_.PSPath -Name 'DisplayIcon' -Value $exe
