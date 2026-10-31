@@ -1,23 +1,10 @@
 import { defineStore } from 'pinia'
-import { watch } from 'vue'
+import { api } from '../api'
 
-const STORAGE_KEY = 'gt_shop_v1'
+const LOCAL_KEY = 'gt_shop_local_v2'
 
-function blankState() {
+function blankLocal() {
   return {
-    cart: [],
-    favorites: [],
-    addresses: [
-      {
-        id: 'ADDR-DEMO',
-        name: '林小满',
-        phone: '13800138000',
-        region: '浙江省 杭州市 西湖区',
-        detail: '文三路 90 号 3 幢 502',
-        is_default: true
-      }
-    ],
-    orders: [],
     wallet: { coupons: 3, points: 1280, red_packets: 2, balance: 0 },
     profile: {
       nickname: '种草少女',
@@ -34,12 +21,11 @@ function blankState() {
   }
 }
 
-function loadState() {
+function loadLocal() {
   try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
-    return { ...blankState(), ...raw }
+    return { ...blankLocal(), ...(JSON.parse(localStorage.getItem(LOCAL_KEY) || '{}')) }
   } catch (error) {
-    return blankState()
+    return blankLocal()
   }
 }
 
@@ -54,7 +40,7 @@ function seedConversations() {
       unread: 1,
       messages: [
         { from: 'other', text: '你好，我是种草集官方客服，订单、退款、账号问题都可以问我。', at: now - 3600_000 },
-        { from: 'other', text: '如果想投诉商家或反馈体验，直接把情况发在这里即可。', at: now - 3500_000 }
+        { from: 'other', text: '如果要投诉商家或反馈体验，把情况发在这里就行。', at: now - 3500_000 }
       ]
     },
     {
@@ -80,9 +66,19 @@ function seedConversations() {
 
 export const useShopStore = defineStore('shop', {
   state: () => {
-    const state = loadState()
-    if (!state.conversations.length) state.conversations = seedConversations()
-    return state
+    const local = loadLocal()
+    if (!local.conversations.length) local.conversations = seedConversations()
+    return {
+      cart: [],
+      favorites: [],
+      addresses: [],
+      orders: [],
+      ready: false,
+      wallet: local.wallet,
+      profile: local.profile,
+      conversations: local.conversations,
+      reviews: local.reviews
+    }
   },
   getters: {
     cartCount: (state) => state.cart.reduce((sum, row) => sum + row.qty, 0),
@@ -98,12 +94,9 @@ export const useShopStore = defineStore('shop', {
       : state.orders.filter((row) => row.status === status))
   },
   actions: {
-    persist() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        cart: this.cart,
-        favorites: this.favorites,
-        addresses: this.addresses,
-        orders: this.orders,
+    // ------------------------------------------------------------ local bits
+    persistLocal() {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify({
         wallet: this.wallet,
         profile: this.profile,
         conversations: this.conversations,
@@ -111,142 +104,109 @@ export const useShopStore = defineStore('shop', {
       }))
     },
     startAutoSave() {
-      watch(() => this.$state, () => this.persist(), { deep: true })
+      // 本地部分（钱包/资料/消息）按账号保存在浏览器存储里
+      this.$subscribe(() => this.persistLocal())
     },
-    // ---------------------------------------------------------------- cart
-    addToCart(item, qty = 1) {
-      const existing = this.cart.find((row) => row.item_id === item.item_id)
-      if (existing) {
-        existing.qty += qty
-      } else {
-        this.cart.push({
-          item_id: item.item_id,
-          title: item.title,
-          price: Number(item.price),
-          cover_url: item.cover_url,
-          category: item.category,
-          qty,
-          checked: true
-        })
+    // ---------------------------------------------------------------- server
+    async init() {
+      await Promise.all([this.refreshCart(), this.refreshFavorites(), this.refreshAddresses(),
+                         this.loadOrders()])
+      this.ready = true
+    },
+    async refreshCart() {
+      try {
+        this.cart = await api.getCart()
+      } catch (error) {
+        this.cart = []
       }
-      this.persist()
     },
-    setQty(itemId, qty) {
-      const row = this.cart.find((entry) => entry.item_id === itemId)
-      if (!row) return
-      row.qty = Math.max(1, Math.min(99, Number(qty) || 1))
-      this.persist()
-    },
-    toggleChecked(itemId, value) {
-      const row = this.cart.find((entry) => entry.item_id === itemId)
-      if (!row) return
-      row.checked = value === undefined ? !row.checked : Boolean(value)
-      this.persist()
-    },
-    toggleAll(value) {
-      this.cart.forEach((row) => { row.checked = value })
-      this.persist()
-    },
-    removeFromCart(itemId) {
-      this.cart = this.cart.filter((row) => row.item_id !== itemId)
-      this.persist()
-    },
-    clearChecked() {
-      this.cart = this.cart.filter((row) => !row.checked)
-      this.persist()
-    },
-    // ------------------------------------------------------------ favorites
-    toggleFavorite(item) {
-      const exists = this.favorites.some((row) => row.item_id === item.item_id)
-      if (exists) {
-        this.favorites = this.favorites.filter((row) => row.item_id !== item.item_id)
-      } else {
-        this.favorites.push({
-          item_id: item.item_id,
-          title: item.title,
-          price: Number(item.price),
-          cover_url: item.cover_url,
-          category: item.category,
-          added_at: Date.now()
-        })
+    async refreshFavorites() {
+      try {
+        this.favorites = await api.getFavorites()
+      } catch (error) {
+        this.favorites = []
       }
-      this.persist()
-      return !exists
+    },
+    async refreshAddresses() {
+      try {
+        this.addresses = await api.getAddresses()
+      } catch (error) {
+        this.addresses = []
+      }
+    },
+    async addToCart(item, qty = 1) {
+      this.cart = await api.addCart(item.item_id, qty)
+    },
+    async setQty(itemId, qty) {
+      this.cart = await api.patchCart(itemId, { qty })
+    },
+    async toggleChecked(itemId, value) {
+      const row = this.cart.find((entry) => entry.item_id === itemId)
+      const next = value === undefined ? !row?.checked : Boolean(value)
+      this.cart = await api.patchCart(itemId, { checked: next })
+    },
+    async toggleAll(value) {
+      this.cart = await api.checkAllCart(value)
+    },
+    async removeFromCart(itemId) {
+      this.cart = await api.deleteCart(itemId)
     },
     isFavorite(itemId) {
       return this.favorites.some((row) => row.item_id === itemId)
     },
-    // -------------------------------------------------------------- address
-    addAddress(payload) {
-      const row = { ...payload, id: `ADDR${Date.now()}` }
-      if (!this.addresses.length || payload.is_default) {
-        this.addresses.forEach((entry) => { entry.is_default = false })
-        row.is_default = true
+    async toggleFavorite(item) {
+      if (this.isFavorite(item.item_id)) {
+        await api.removeFavorite(item.item_id)
+        await this.refreshFavorites()
+        return false
       }
-      this.addresses.push(row)
-      this.persist()
+      await api.addFavorite(item.item_id)
+      await this.refreshFavorites()
+      return true
+    },
+    // -------------------------------------------------------------- address
+    async addAddress(payload) {
+      const row = await api.createAddress(payload)
+      await this.refreshAddresses()
       return row
     },
-    updateAddress(id, payload) {
-      const row = this.addresses.find((entry) => entry.id === id)
-      if (!row) return
-      Object.assign(row, payload)
-      if (payload.is_default) {
-        this.addresses.forEach((entry) => { entry.is_default = entry.id === id })
-      }
-      this.persist()
+    async removeAddress(id) {
+      await api.deleteAddress(id)
+      await this.refreshAddresses()
     },
-    removeAddress(id) {
-      this.addresses = this.addresses.filter((row) => row.id !== id)
-      if (this.addresses.length && !this.addresses.some((row) => row.is_default)) {
-        this.addresses[0].is_default = true
-      }
-      this.persist()
-    },
-    setDefaultAddress(id) {
-      this.addresses.forEach((row) => { row.is_default = row.id === id })
-      this.persist()
+    async setDefaultAddress(id) {
+      this.addresses = await api.setDefaultAddress(id)
     },
     // --------------------------------------------------------------- orders
-    createOrder({ items, address, payment, status = 'pending_payment' }) {
-      const total = items.reduce((sum, row) => sum + row.price * row.qty, 0)
-      const order = {
-        id: `GT${Date.now()}`,
-        status,
-        items,
-        address,
-        payment,
-        total,
-        created_at: Date.now()
+    async loadOrders(status = 'all') {
+      try {
+        this.orders = await api.getOrders(status)
+      } catch (error) {
+        this.orders = []
       }
-      this.orders.unshift(order)
-      this.persist()
+    },
+    async createOrder({ addressId, payment }) {
+      const order = await api.createOrder(addressId, payment)
+      await Promise.all([this.refreshCart(), this.loadOrders()])
       return order
     },
-    updateOrderStatus(id, status) {
-      const order = this.orders.find((row) => row.id === id)
-      if (!order) return
-      order.status = status
-      this.persist()
-    },
-    payOrder(id) {
-      this.updateOrderStatus(id, 'pending_shipment')
-      this.wallet.points += 10
-      this.profile.spent += this.orders.find((row) => row.id === id)?.total || 0
-      this.persist()
+    async orderAction(orderId, action) {
+      const order = await api.orderAction(orderId, action)
+      await this.loadOrders()
+      return order
     },
     // -------------------------------------------------------------- profile
     updateProfile(payload) {
       Object.assign(this.profile, payload)
-      this.persist()
+      this.persistLocal()
     },
     updateSizes(payload) {
       Object.assign(this.profile.sizes, payload)
-      this.persist()
+      this.persistLocal()
     },
     addReview(review) {
       this.reviews.unshift({ ...review, at: Date.now() })
-      this.persist()
+      this.persistLocal()
     },
     // ----------------------------------------------------------- messaging
     sendMessage(conversationId, text) {
@@ -254,7 +214,7 @@ export const useShopStore = defineStore('shop', {
       if (!room || !text.trim()) return
       room.messages.push({ from: 'me', text: text.trim(), at: Date.now() })
       room.unread = 0
-      this.persist()
+      this.persistLocal()
       const reply = room.kind === 'service'
         ? '已记录你的问题，客服会在 24 小时内跟进。退款/投诉请补充订单号或截图～'
         : room.kind === 'merchant'
@@ -262,14 +222,14 @@ export const useShopStore = defineStore('shop', {
           : '哈哈好呀，回头一起拼单！'
       setTimeout(() => {
         room.messages.push({ from: 'other', text: reply, at: Date.now() })
-        this.persist()
+        this.persistLocal()
       }, 900)
     },
     markRead(conversationId) {
       const room = this.conversations.find((row) => row.id === conversationId)
       if (room) {
         room.unread = 0
-        this.persist()
+        this.persistLocal()
       }
     }
   }

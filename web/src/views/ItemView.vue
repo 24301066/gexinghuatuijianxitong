@@ -48,7 +48,7 @@ async function act(type) {
   try {
     await api.postEvent(item.value.item_id, type)
     if (type === 'cart') {
-      shop.addToCart(item.value)
+      await shop.addToCart(item.value)
     }
     toast.push(type === 'purchase' ? '已模拟购买，推荐会更新' : '已加入购物车', 'info')
   } catch (err) {
@@ -60,9 +60,9 @@ async function act(type) {
 
 const favorite = computed(() => (item.value ? shop.isFavorite(item.value.item_id) : false))
 
-function toggleFav() {
+async function toggleFav() {
   if (!item.value) return
-  const added = shop.toggleFavorite(item.value)
+  const added = await shop.toggleFavorite(item.value)
   toast.push(added ? '已收藏' : '已取消收藏')
 }
 

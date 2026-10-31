@@ -8,6 +8,7 @@ const session = useSessionStore()
 const toast = useToastStore()
 const shop = useShopStore()
 shop.startAutoSave()
+if (session.loggedIn) { shop.init().catch(() => {}) }
 
 const router = useRouter()
 const route = useRoute()

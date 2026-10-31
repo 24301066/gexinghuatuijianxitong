@@ -203,3 +203,62 @@ class RebuildOut(BaseModel):
     rebuilt: bool
     model_version: str
     events: int
+
+class CartIn(BaseModel):
+    item_id: str = Field(min_length=1, max_length=40)
+    qty: int = Field(default=1, ge=1, le=99)
+
+
+class CartPatch(BaseModel):
+    qty: int | None = Field(default=None, ge=1, le=99)
+    checked: bool | None = None
+
+
+class CartRowOut(BaseModel):
+    item_id: str
+    title: str
+    price: float
+    cover_url: str
+    category: str
+    qty: int
+    checked: bool
+
+
+class FavoriteRowOut(BaseModel):
+    item_id: str
+    title: str
+    price: float
+    cover_url: str
+    category: str
+
+
+class AddressIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    phone: str = Field(min_length=5, max_length=30)
+    region: str = Field(min_length=1, max_length=160)
+    detail: str = Field(min_length=1, max_length=200)
+    is_default: bool = False
+
+
+class AddressOut(BaseModel):
+    id: str
+    name: str
+    phone: str
+    region: str
+    detail: str
+    is_default: bool
+
+
+class OrderIn(BaseModel):
+    address_id: str = Field(min_length=1, max_length=40)
+    payment: str = Field(default="微信支付", max_length=30)
+
+
+class OrderOut(BaseModel):
+    id: str
+    status: str
+    payment: str
+    total: float
+    items: list[CartRowOut]
+    address: AddressOut | None = None
+    created_at: datetime

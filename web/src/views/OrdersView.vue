@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { mediaUrl } from '../api'
 import { useShopStore } from '../stores/shop'
@@ -38,31 +38,26 @@ function pick(key) {
   router.replace({ name: 'orders', query: key === 'all' ? {} : { status: key } })
 }
 
-function pay(order) {
-  shop.payOrder(order.id)
-  toast.push('支付成功，等待发货')
+async function run(order, action, message) {
+  try {
+    await shop.orderAction(order.id, action)
+    if (message) toast.push(message)
+  } catch (err) {
+    toast.push(err.message, 'error')
+  }
 }
 
-function cancel(order) {
-  shop.updateOrderStatus(order.id, 'completed')
-  toast.push('订单已取消')
-}
+const pay = (order) => run(order, 'pay', '支付成功，等待发货')
+const cancel = (order) => run(order, 'cancel', '订单已取消')
+const receive = (order) => run(order, 'receive', '已确认收货，记得评价')
+const aftersale = (order) => run(order, 'aftersale', '已申请售后，客服会联系你')
 
-function receive(order) {
-  shop.updateOrderStatus(order.id, 'pending_review')
-  toast.push('已确认收货，记得评价')
-}
-
-function review(order) {
+async function review(order) {
   shop.addReview({ order_id: order.id, text: '默认好评：包装完好，物流很快，和安利里说的一样。' })
-  shop.updateOrderStatus(order.id, 'completed')
-  toast.push('已提交评价')
+  await run(order, 'review', '已提交评价')
 }
 
-function aftersale(order) {
-  shop.updateOrderStatus(order.id, 'aftersale')
-  toast.push('已申请售后，客服会联系你')
-}
+onMounted(() => { shop.loadOrders('all') })
 </script>
 
 <template>

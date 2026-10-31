@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -103,5 +103,57 @@ class Dwell(Base):
     post_id: Mapped[str] = mapped_column(ForeignKey("posts.post_id"), nullable=False,
                                          index=True)
     seconds: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow,
+                                                 index=True)
+
+class CartItem(Base):
+    """服务端购物车：同一用户同一商品只有一行，重复加入累加数量。"""
+
+    __tablename__ = "cart_items"
+
+    cart_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False,
+                                         index=True)
+    item_id: Mapped[str] = mapped_column(ForeignKey("items.item_id"), nullable=False)
+    qty: Mapped[int] = mapped_column(default=1)
+    checked: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+
+    favorite_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False,
+                                         index=True)
+    item_id: Mapped[str] = mapped_column(ForeignKey("items.item_id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+
+class Address(Base):
+    __tablename__ = "addresses"
+
+    address_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False,
+                                         index=True)
+    name: Mapped[str] = mapped_column(String(60), nullable=False)
+    phone: Mapped[str] = mapped_column(String(30), nullable=False)
+    region: Mapped[str] = mapped_column(String(160), nullable=False)
+    detail: Mapped[str] = mapped_column(String(200), nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    order_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False,
+                                         index=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending_payment")
+    payment: Mapped[str] = mapped_column(String(30), nullable=False, default="")
+    total: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    items_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    address_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow,
                                                  index=True)

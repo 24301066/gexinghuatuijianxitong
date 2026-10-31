@@ -86,3 +86,21 @@ export const api = {
   dwellEvent: (postId, seconds) =>
     request('/events', { method: 'POST', body: { type: 'post_dwell', post_id: postId, seconds } })
 }
+
+// ---------------------------------------------------------------- shop API
+api.getCart = () => request('/cart')
+api.addCart = (itemId, qty = 1) => request('/cart', { method: 'POST', body: { item_id: itemId, qty } })
+api.patchCart = (itemId, body) => request(`/cart/${encodeURIComponent(itemId)}`, { method: 'PATCH', body })
+api.deleteCart = (itemId) => request(`/cart/${encodeURIComponent(itemId)}`, { method: 'DELETE' })
+api.checkAllCart = (checked = true) => request(`/cart/check-all?checked=${checked ? 'true' : 'false'}`, { method: 'POST' })
+api.getFavorites = () => request('/favorites')
+api.addFavorite = (itemId) => request(`/favorites/${encodeURIComponent(itemId)}`, { method: 'POST' })
+api.removeFavorite = (itemId) => request(`/favorites/${encodeURIComponent(itemId)}`, { method: 'DELETE' })
+api.getAddresses = () => request('/addresses')
+api.createAddress = (payload) => request('/addresses', { method: 'POST', body: payload })
+api.updateAddress = (id, payload) => request(`/addresses/${encodeURIComponent(id)}`, { method: 'PATCH', body: payload })
+api.deleteAddress = (id) => request(`/addresses/${encodeURIComponent(id)}`, { method: 'DELETE' })
+api.setDefaultAddress = (id) => request(`/addresses/${encodeURIComponent(id)}/default`, { method: 'POST' })
+api.getOrders = (status = 'all') => request(`/orders?status=${encodeURIComponent(status)}`)
+api.createOrder = (addressId, payment) => request('/orders', { method: 'POST', body: { address_id: addressId, payment } })
+api.orderAction = (orderId, action) => request(`/orders/${encodeURIComponent(orderId)}/${action}`, { method: 'POST' })

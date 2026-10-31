@@ -15,7 +15,7 @@ const payment = ref('微信支付')
 const payments = ['微信支付', '支付宝', '银行卡', '货到付款']
 const total = computed(() => items.value.reduce((sum, row) => sum + row.price * row.qty, 0))
 
-function submit() {
+async function submit() {
   if (!items.value.length) {
     toast.push('没有可结算的商品', 'error')
     return
@@ -25,10 +25,13 @@ function submit() {
     toast.push('请先选择收货地址', 'error')
     return
   }
-  shop.createOrder({ items: items.value.map((row) => ({ ...row })), address, payment: payment.value })
-  shop.clearChecked()
-  toast.push('订单已创建，请完成支付')
-  router.push({ name: 'orders', query: { status: 'pending_payment' } })
+  try {
+    await shop.createOrder({ addressId: address.id, payment: payment.value })
+    toast.push('订单已创建，请完成支付')
+    router.push({ name: 'orders', query: { status: 'pending_payment' } })
+  } catch (err) {
+    toast.push(err.message, 'error')
+  }
 }
 </script>
 

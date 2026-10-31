@@ -37,22 +37,22 @@ function toggle(id) {
     : [...selected.value, id]
 }
 
-function removeSelected() {
+async function removeSelected() {
   if (!selected.value.length) {
     toast.push('先勾选要删除的地址', 'error')
     return
   }
-  selected.value.forEach((id) => shop.removeAddress(id))
+  for (const id of selected.value) { await shop.removeAddress(id) }
   selected.value = []
   toast.push('已删除所选地址')
 }
 
-function save() {
+async function save() {
   if (!form.name || !form.phone || !form.province || !form.city || !form.district || !form.detail) {
     toast.push('姓名、电话、省市区和详细地址都要填', 'error')
     return
   }
-  shop.addAddress({
+  await shop.addAddress({
     name: form.name,
     phone: form.phone,
     region: `${form.province} ${form.city} ${form.district}`,

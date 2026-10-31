@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from uuid import uuid4
 from datetime import datetime, timedelta
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session
 from .. import __version__
 from ..core.errors import ApiError, request_id_of
 from ..core.security import create_token, hash_password, verify_password
-from ..db.models import Dwell, Event, Item, Post, Search, User, utcnow
+from ..db.models import (Address, CartItem, Dwell, Event, Favorite, Item, Order, Post, Search, User, utcnow)
 from ..media import covers
 from ..runtime import Runtime
 from . import schemas
@@ -488,3 +489,274 @@ def rebuild_model(db: Session = Depends(get_db), _: User = Depends(require_admin
     engine = runtime.refresh(force=True)
     total = db.scalar(select(func.count()).select_from(Event)) or 0
     return schemas.RebuildOut(rebuilt=True, model_version=engine.model_version, events=total)
+
+# ------------------------------------------------------------------ shop API
+
+
+def _cart_row(item: Item, qty: int, checked: bool) -> schemas.CartRowOut:
+    return schemas.CartRowOut(item_id=item.item_id, title=item.title,
+                              price=float(item.price),
+                              cover_url=_cover_url("product", item.item_id),
+                              category=item.category, qty=qty, checked=checked)
+
+
+def _favorite_row(item: Item) -> schemas.FavoriteRowOut:
+    return schemas.FavoriteRowOut(item_id=item.item_id, title=item.title,
+                                  price=float(item.price),
+                                  cover_url=_cover_url("product", item.item_id),
+                                  category=item.category)
+
+
+def _address_out(row: Address) -> schemas.AddressOut:
+    return schemas.AddressOut(id=row.address_id, name=row.name, phone=row.phone,
+                              region=row.region, detail=row.detail,
+                              is_default=bool(row.is_default))
+
+
+@router.get("/cart", response_model=list[schemas.CartRowOut], tags=["shop"])
+def get_cart(db: Session = Depends(get_db),
+             user: User = Depends(current_user)) -> list[schemas.CartRowOut]:
+    rows = db.scalars(select(CartItem).where(CartItem.user_id == user.user_id)
+                      .order_by(CartItem.created_at)).all()
+    items = {
+        item.item_id: item
+        for item in db.scalars(select(Item).where(
+            Item.item_id.in_({row.item_id for row in rows})))
+    } if rows else {}
+    return [_cart_row(items[row.item_id], row.qty, bool(row.checked))
+            for row in rows if row.item_id in items]
+
+
+@router.post("/cart", response_model=list[schemas.CartRowOut], tags=["shop"])
+def add_to_cart(payload: schemas.CartIn, db: Session = Depends(get_db),
+                user: User = Depends(current_user)) -> list[schemas.CartRowOut]:
+    item = db.get(Item, payload.item_id)
+    if item is None:
+        raise ApiError(404, f"商品 {payload.item_id} 不存在")
+    row = db.scalar(select(CartItem).where(CartItem.user_id == user.user_id,
+                                           CartItem.item_id == payload.item_id))
+    if row is None:
+        db.add(CartItem(user_id=user.user_id, item_id=payload.item_id,
+                        qty=min(payload.qty, 99), checked=True))
+    else:
+        row.qty = min(int(row.qty) + payload.qty, 99)
+        row.checked = True
+    db.flush()
+    return get_cart(db, user)
+
+
+@router.patch("/cart/{item_id}", response_model=list[schemas.CartRowOut], tags=["shop"])
+def patch_cart(item_id: str, payload: schemas.CartPatch, db: Session = Depends(get_db),
+               user: User = Depends(current_user)) -> list[schemas.CartRowOut]:
+    row = db.scalar(select(CartItem).where(CartItem.user_id == user.user_id,
+                                           CartItem.item_id == item_id))
+    if row is None:
+        raise ApiError(404, "购物车里没有这个商品")
+    if payload.qty is not None:
+        row.qty = payload.qty
+    if payload.checked is not None:
+        row.checked = payload.checked
+    db.flush()
+    return get_cart(db, user)
+
+
+@router.delete("/cart/{item_id}", response_model=list[schemas.CartRowOut], tags=["shop"])
+def delete_cart(item_id: str, db: Session = Depends(get_db),
+                user: User = Depends(current_user)) -> list[schemas.CartRowOut]:
+    row = db.scalar(select(CartItem).where(CartItem.user_id == user.user_id,
+                                           CartItem.item_id == item_id))
+    if row is not None:
+        db.delete(row)
+        db.flush()
+    return get_cart(db, user)
+
+
+@router.post("/cart/check-all", response_model=list[schemas.CartRowOut], tags=["shop"])
+def check_all_cart(checked: bool = Query(True), db: Session = Depends(get_db),
+                   user: User = Depends(current_user)) -> list[schemas.CartRowOut]:
+    for row in db.scalars(select(CartItem).where(CartItem.user_id == user.user_id)):
+        row.checked = checked
+    db.flush()
+    return get_cart(db, user)
+
+
+@router.get("/favorites", response_model=list[schemas.FavoriteRowOut], tags=["shop"])
+def get_favorites(db: Session = Depends(get_db),
+                  user: User = Depends(current_user)) -> list[schemas.FavoriteRowOut]:
+    rows = db.scalars(select(Favorite).where(Favorite.user_id == user.user_id)
+                      .order_by(Favorite.created_at.desc())).all()
+    items = {
+        item.item_id: item
+        for item in db.scalars(select(Item).where(
+            Item.item_id.in_({row.item_id for row in rows})))
+    } if rows else {}
+    return [_favorite_row(items[row.item_id]) for row in rows if row.item_id in items]
+
+
+@router.post("/favorites/{item_id}", status_code=201, tags=["shop"])
+def add_favorite(item_id: str, db: Session = Depends(get_db),
+                 user: User = Depends(current_user)) -> dict:
+    if db.get(Item, item_id) is None:
+        raise ApiError(404, f"商品 {item_id} 不存在")
+    exists = db.scalar(select(Favorite).where(Favorite.user_id == user.user_id,
+                                               Favorite.item_id == item_id))
+    if exists is None:
+        db.add(Favorite(user_id=user.user_id, item_id=item_id))
+        db.flush()
+    return {"item_id": item_id, "favorited": True}
+
+
+@router.delete("/favorites/{item_id}", tags=["shop"])
+def remove_favorite(item_id: str, db: Session = Depends(get_db),
+                    user: User = Depends(current_user)) -> dict:
+    row = db.scalar(select(Favorite).where(Favorite.user_id == user.user_id,
+                                           Favorite.item_id == item_id))
+    if row is not None:
+        db.delete(row)
+        db.flush()
+    return {"item_id": item_id, "favorited": False}
+
+
+@router.get("/addresses", response_model=list[schemas.AddressOut], tags=["shop"])
+def get_addresses(db: Session = Depends(get_db),
+                  user: User = Depends(current_user)) -> list[schemas.AddressOut]:
+    rows = db.scalars(select(Address).where(Address.user_id == user.user_id)
+                      .order_by(Address.is_default.desc(), Address.created_at)).all()
+    return [_address_out(row) for row in rows]
+
+
+@router.post("/addresses", response_model=schemas.AddressOut, status_code=201, tags=["shop"])
+def create_address(payload: schemas.AddressIn, db: Session = Depends(get_db),
+                   user: User = Depends(current_user)) -> schemas.AddressOut:
+    rows = db.scalars(select(Address).where(Address.user_id == user.user_id)).all()
+    make_default = payload.is_default or not rows
+    address = Address(address_id=f"A{uuid4().hex[:12]}", user_id=user.user_id,
+                      name=payload.name, phone=payload.phone, region=payload.region,
+                      detail=payload.detail, is_default=make_default)
+    if make_default:
+        for row in rows:
+            row.is_default = False
+    db.add(address)
+    db.flush()
+    return _address_out(address)
+
+
+@router.patch("/addresses/{address_id}", response_model=schemas.AddressOut, tags=["shop"])
+def update_address(address_id: str, payload: schemas.AddressIn,
+                   db: Session = Depends(get_db),
+                   user: User = Depends(current_user)) -> schemas.AddressOut:
+    row = db.scalar(select(Address).where(Address.address_id == address_id,
+                                          Address.user_id == user.user_id))
+    if row is None:
+        raise ApiError(404, "地址不存在")
+    row.name = payload.name
+    row.phone = payload.phone
+    row.region = payload.region
+    row.detail = payload.detail
+    if payload.is_default:
+        for other in db.scalars(select(Address).where(Address.user_id == user.user_id)):
+            other.is_default = other.address_id == address_id
+    db.flush()
+    return _address_out(row)
+
+
+@router.delete("/addresses/{address_id}", tags=["shop"])
+def delete_address(address_id: str, db: Session = Depends(get_db),
+                   user: User = Depends(current_user)) -> dict:
+    row = db.scalar(select(Address).where(Address.address_id == address_id,
+                                          Address.user_id == user.user_id))
+    if row is not None:
+        was_default = bool(row.is_default)
+        db.delete(row)
+        db.flush()
+        if was_default:
+            rest = db.scalars(select(Address).where(Address.user_id == user.user_id)).all()
+            if rest:
+                rest[0].is_default = True
+                db.flush()
+    return {"deleted": address_id}
+
+
+@router.post("/addresses/{address_id}/default", response_model=list[schemas.AddressOut],
+             tags=["shop"])
+def set_default_address(address_id: str, db: Session = Depends(get_db),
+                        user: User = Depends(current_user)) -> list[schemas.AddressOut]:
+    for row in db.scalars(select(Address).where(Address.user_id == user.user_id)):
+        row.is_default = row.address_id == address_id
+    db.flush()
+    return get_addresses(db, user)
+
+
+def _order_out(row: Order) -> schemas.OrderOut:
+    items = json.loads(row.items_json or "[]")
+    address = json.loads(row.address_json or "{}")
+    return schemas.OrderOut(
+        id=row.order_id, status=row.status, payment=row.payment,
+        total=float(row.total),
+        items=[schemas.CartRowOut(**item) for item in items],
+        address=schemas.AddressOut(**address) if address.get("id") else None,
+        created_at=row.created_at,
+    )
+
+
+@router.get("/orders", response_model=list[schemas.OrderOut], tags=["shop"])
+def get_orders(status: str | None = None, db: Session = Depends(get_db),
+               user: User = Depends(current_user)) -> list[schemas.OrderOut]:
+    query = select(Order).where(Order.user_id == user.user_id)
+    if status and status != "all":
+        query = query.where(Order.status == status)
+    rows = db.scalars(query.order_by(Order.created_at.desc())).all()
+    return [_order_out(row) for row in rows]
+
+
+@router.post("/orders", response_model=schemas.OrderOut, status_code=201, tags=["shop"])
+def create_order(payload: schemas.OrderIn, db: Session = Depends(get_db),
+                 user: User = Depends(current_user)) -> schemas.OrderOut:
+    address = db.scalar(select(Address).where(Address.address_id == payload.address_id,
+                                              Address.user_id == user.user_id))
+    if address is None:
+        raise ApiError(404, "收货地址不存在")
+    rows = db.scalars(select(CartItem).where(CartItem.user_id == user.user_id,
+                                             CartItem.checked.is_(True))).all()
+    if not rows:
+        raise ApiError(422, "购物车里没有勾选商品")
+    items = []
+    total = 0.0
+    for row in rows:
+        item = db.get(Item, row.item_id)
+        if item is None:
+            continue
+        total += float(item.price) * int(row.qty)
+        items.append(schemas.CartRowOut(item_id=item.item_id, title=item.title,
+                                        price=float(item.price),
+                                        cover_url=_cover_url("product", item.item_id),
+                                        category=item.category, qty=int(row.qty),
+                                        checked=True).model_dump())
+    order = Order(order_id=f"GT{int(utcnow().timestamp())}{uuid4().hex[:6]}".upper(),
+                  user_id=user.user_id, status="pending_payment",
+                  payment=payload.payment, total=total,
+                  items_json=json.dumps(items, ensure_ascii=False),
+                  address_json=json.dumps(_address_out(address).model_dump(),
+                                          ensure_ascii=False))
+    db.add(order)
+    for row in rows:
+        db.delete(row)
+    db.flush()
+    return _order_out(order)
+
+
+@router.post("/orders/{order_id}/{action}", response_model=schemas.OrderOut, tags=["shop"])
+def update_order(order_id: str, action: str, db: Session = Depends(get_db),
+                 user: User = Depends(current_user)) -> schemas.OrderOut:
+    order = db.scalar(select(Order).where(Order.order_id == order_id,
+                                          Order.user_id == user.user_id))
+    if order is None:
+        raise ApiError(404, "订单不存在")
+    transitions = {"pay": "pending_shipment", "ship": "pending_receipt",
+                   "receive": "pending_review", "review": "completed",
+                   "cancel": "cancelled", "aftersale": "aftersale"}
+    if action not in transitions:
+        raise ApiError(422, f"未知操作 {action}")
+    order.status = transitions[action]
+    db.flush()
+    return _order_out(order)

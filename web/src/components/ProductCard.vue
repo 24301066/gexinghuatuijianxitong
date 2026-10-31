@@ -19,10 +19,9 @@ function addCart(event) {
   toast.push('已加入购物车')
 }
 
-function buyNow(event) {
+async function buyNow(event) {
   event.preventDefault()
-  shop.addToCart(props.item)
-  shop.cart.forEach((row) => { row.checked = row.item_id === props.item.item_id })
+  await shop.addToCart(props.item)
   router.push({ name: 'checkout' })
 }
 
