@@ -12,7 +12,7 @@ def test_list_items_paginates(client):
     assert body["total"] == 30
     assert len(body["items"]) == 5
     assert set(body["items"][0]) == {"item_id", "title", "category", "price", "tags",
-                                     "description", "cover_url"}
+                                     "description", "cover_url", "images"}
     assert isinstance(body["items"][0]["tags"], list)
 
 
