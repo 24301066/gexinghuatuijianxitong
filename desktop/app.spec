@@ -19,6 +19,20 @@ datas = [
     (str(REPO / "desktop" / "version_info.txt"), "desktop"),
 ]
 
+# wx.html2's Edge backend loads WebView2Loader.dll from the wx package directory.
+# PyInstaller's hook does not collect it, so the packaged app silently failed to
+# initialise WebView2 and fell back to the external browser. Ship it explicitly.
+try:
+    import wx as _wx
+
+    _loader = Path(_wx.__file__).parent / "WebView2Loader.dll"
+    if _loader.is_file():
+        datas.append((str(_loader), "wx"))
+    else:
+        print("WARNING: WebView2Loader.dll not found next to wx; embedded view may fail")
+except Exception as _exc:  # noqa: BLE001 - building must not fail on this
+    print(f"WARNING: could not locate wx for WebView2Loader.dll: {_exc}")
+
 hiddenimports = (
     collect_submodules("app")
     + collect_submodules("uvicorn")

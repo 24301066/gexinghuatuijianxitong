@@ -31,7 +31,7 @@ if str(Path(__file__).resolve().parent) not in sys.path:
 
 import app_core  # noqa: E402
 
-WEBVIEW_TIMEOUT_SECONDS = 8.0
+WEBVIEW_READY_TIMEOUT_SECONDS = 20.0
 MB_ICONERROR = 0x10
 MB_ICONWARNING = 0x30
 
@@ -220,7 +220,12 @@ def run_window(url: str, data_directory: Path, server, thread) -> int:
     import wx.html2
 
     os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", str(data_directory / "webview2"))
-    state = {"loaded": False, "fallback": False}
+    log_file = data_directory / "logs" / "webview.log"
+
+    def wlog(message: str) -> None:
+        log_lines([f"webview {message}"], log_file)
+
+    state = {"loaded": False, "fallback": False, "attempts": 0}
 
     class Frame(wx.Frame):
         def __init__(self) -> None:
@@ -230,12 +235,12 @@ def run_window(url: str, data_directory: Path, server, thread) -> int:
             self.sizer = wx.BoxSizer(wx.VERTICAL)
             self.panel.SetSizer(self.sizer)
             self.view = None
+            self._timers = []
             self.message = wx.StaticText(
                 self.panel, label="正在启动内置服务并加载界面…",
                 style=wx.ALIGN_CENTRE_HORIZONTAL)
             self.sizer.Add(self.message, 1, wx.EXPAND | wx.ALL, 24)
             self.Bind(wx.EVT_CLOSE, self.on_close)
-            wx.CallLater(int(WEBVIEW_TIMEOUT_SECONDS * 1000), self.check_loaded)
 
         def mount_webview(self) -> None:
             import wx.html2  # noqa: F811 - local import keeps headless mode light
@@ -245,31 +250,99 @@ def run_window(url: str, data_directory: Path, server, thread) -> int:
                                              backend=wx.html2.WebViewBackendEdge)
             self.view.Bind(wx.html2.EVT_WEBVIEW_LOADED, self.on_loaded)
             self.view.Bind(wx.html2.EVT_WEBVIEW_ERROR, self.on_error)
+            for name in ("EVT_WEBVIEW_CREATED", "EVT_WEBVIEW_NAVIGATING",
+                         "EVT_WEBVIEW_NEWWINDOW"):
+                event = getattr(wx.html2, name, None)
+                if event is not None:
+                    self.view.Bind(event, self.on_any_event)
             self.sizer.Add(self.view, 1, wx.EXPAND)
             self.panel.Layout()
-            self.view.LoadURL(url)
+
+            # wx Edge backend initialises WebView2 asynchronously; a LoadURL issued
+            # before it is ready can be dropped silently (this is what caused the
+            # "8 秒内未完成首屏加载" fallback on some machines). Load after CREATED,
+            # then retry once shortly after, and treat "navigated + idle" as ready.
+            wlog("mount webview")
+            if getattr(wx.html2, "EVT_WEBVIEW_CREATED", None) is not None:
+                wx.CallAfter(self.load_url)
+            else:
+                self.load_url()
+            self.later(1200, self.ensure_loaded)
+            self.later(3000, self.check_ready)
+
+        def later(self, delay_ms: int, callback) -> None:
+            timer = wx.CallLater(delay_ms, callback)
+            self._timers.append(timer)
+
+        def load_url(self) -> None:
+            try:
+                current = self.view.GetURL()
+            except Exception:  # noqa: BLE001
+                current = ""
+            if current:
+                wlog(f"already at {current}")
+                return
+            wlog(f"LoadURL {url}")
+            try:
+                self.view.LoadURL(url)
+            except Exception as exc:  # noqa: BLE001
+                wlog(f"LoadURL failed: {exc}")
+                self.use_browser(f"导航失败：{exc}")
+
+        def ensure_loaded(self) -> None:
+            if state["loaded"] or state["fallback"]:
+                return
+            try:
+                current = self.view.GetURL()
+            except Exception:  # noqa: BLE001
+                current = ""
+            if not current:
+                wlog("retry LoadURL")
+                self.view.LoadURL(url)
+
+        def on_any_event(self, event) -> None:
+            try:
+                wlog(f"event {type(event).__name__} {event.GetString()[:120]}")
+            except Exception:  # noqa: BLE001
+                wlog(f"event {type(event).__name__}")
 
         def on_loaded(self, event) -> None:
             state["loaded"] = True
+            wlog("loaded event")
 
         def on_error(self, event) -> None:
+            wlog(f"error event {event.GetString()}")
             self.use_browser(str(event.GetString() or "WebView 加载失败"))
+
+        def check_ready(self) -> None:
+            if state["loaded"] or state["fallback"]:
+                return
+            state["attempts"] += 1
+            try:
+                current = self.view.GetURL()
+                busy = self.view.IsBusy()
+            except Exception:  # noqa: BLE001
+                current, busy = "", False
+            if current.startswith(url) and not busy:
+                state["loaded"] = True
+                wlog(f"ready via poll at {current}")
+                return
+            if state["attempts"] >= int(WEBVIEW_READY_TIMEOUT_SECONDS / 0.5):
+                wlog(f"timeout, url={current!r} busy={busy}")
+                self.use_browser("窗口内页面未能加载（已多次重试）")
+                return
+            self.later(500, self.check_ready)
 
         def use_browser(self, reason: str) -> None:
             if state["fallback"]:
                 return
             state["fallback"] = True
-            log_lines([f"webview fallback: {reason}"], data_directory / "logs" / "app.log")
+            wlog(f"fallback: {reason}")
             app_core.open_in_browser(url)
             wx.MessageBox(
                 f"内嵌窗口渲染不可用（{reason}）。\n已改用系统浏览器打开：{url}\n"
-                "内置服务仍在运行，关闭本窗口才会退出。",
+                "详情见数据目录 logs\\webview.log。",
                 app_core.APP_TITLE, wx.OK | wx.ICON_WARNING, self)
-
-        def check_loaded(self) -> None:
-            if state["loaded"] or state["fallback"]:
-                return
-            self.use_browser("8 秒内未完成首屏加载")
 
         def on_close(self, event) -> None:
             stop_server(server, thread)
@@ -282,6 +355,7 @@ def run_window(url: str, data_directory: Path, server, thread) -> int:
     try:
         frame.mount_webview()
     except Exception as exc:  # noqa: BLE001 - any WebView failure degrades to browser
+        wlog(f"mount failed: {exc}")
         frame.use_browser(str(exc))
     app.MainLoop()
     return 0 if not state["fallback"] else 3
