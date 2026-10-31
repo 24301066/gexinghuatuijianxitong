@@ -36,8 +36,8 @@ function goCheckout() {
       <div class="row-list">
         <div v-for="row in rows" :key="row.item_id" class="row-item">
           <input type="checkbox" :checked="row.checked" @change="shop.toggleChecked(row.item_id, $event.target.checked)" />
-          <RouterLink :to="{ name: 'item', params: { itemId: row.item_id } }" class="cart-thumb">
-            <img :src="mediaUrl(row.cover_url)" :alt="row.title" />
+          <RouterLink :to="{ name: 'item', params: { itemId: row.item_id } }">
+            <img :src="mediaUrl(row.cover_url)" :alt="row.title" class="cart-thumb" />
           </RouterLink>
           <div class="grow">
             <div style="font-weight: 700">{{ row.title }}</div>

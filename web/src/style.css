@@ -538,3 +538,8 @@ button, input, select { font: inherit; color: inherit; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ------------------------------------------------- cart thumb containment */
+.cart-thumb { display: block; overflow: hidden; width: 54px; height: 54px; border-radius: 10px; flex: 0 0 auto; }
+.cart-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.row-item img { max-width: 100%; }
