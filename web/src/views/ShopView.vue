@@ -30,8 +30,6 @@ watch(() => route.params.merchantId, load)
 
 <template>
   <section>
-    <button class="link back-link" type="button" @click="router.back()">← 返回</button>
-
     <div v-if="error" class="notice">{{ error }}</div>
     <div v-if="loading" class="empty">加载店铺…</div>
 

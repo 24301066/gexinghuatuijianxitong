@@ -11,6 +11,9 @@ const related = ref([])
 const loading = ref(true)
 const error = ref('')
 const galleryIndex = ref(0)
+const merchant = ref(null)
+const reviews = ref([])
+const rating = ref({ average: 0, count: 0 })
 let enteredAt = 0
 let reported = false
 
@@ -47,6 +50,14 @@ async function load() {
     galleryIndex.value = 0
     enteredAt = Date.now()
     reported = false
+    if (data.product) {
+      const detail = await api.itemDetail(data.product.item_id).catch(() => null)
+      if (detail) {
+        merchant.value = detail.merchant
+        reviews.value = detail.reviews || []
+        rating.value = { average: detail.rating || 0, count: detail.review_count || 0 }
+      }
+    }
     const linked = await api.posts({ productId: data.product?.item_id || '', size: 4 })
     related.value = linked.posts.filter((row) => row.post_id !== data.post_id)
   } catch (err) {
@@ -68,8 +79,6 @@ onBeforeUnmount(() => {
 
 <template>
   <section>
-    <button class="link back-link" type="button" @click="router.back()">← 返回</button>
-
     <div v-if="loading" class="empty">加载中…</div>
     <div v-else-if="error" class="notice">{{ error }}</div>
 
@@ -136,6 +145,39 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
+
+      <section v-if="merchant" class="section">
+        <div class="section-head"><h2>售卖商家</h2><span>安利作者与商家不是同一个人</span></div>
+        <RouterLink class="merchant-card" :to="{ name: 'shop', params: { merchantId: merchant.merchant_id } }">
+          <span class="avatar">{{ merchant.name.slice(0, 1) }}</span>
+          <div class="grow">
+            <div style="font-weight: 700">{{ merchant.name }} <span class="tag">商家</span></div>
+            <div class="meta">评分 {{ merchant.rating }} · {{ merchant.item_count }} 件商品</div>
+          </div>
+          <span class="arrow">进店 ›</span>
+        </RouterLink>
+      </section>
+
+      <section v-if="reviews.length" class="section">
+        <div class="section-head">
+          <h2>买家秀评价</h2>
+          <span>{{ rating.average.toFixed(1) }} 分 · 共 {{ rating.count }} 条</span>
+        </div>
+        <div class="row-list">
+          <div v-for="review in reviews.slice(0, 6)" :key="review.review_id" class="row-item review-item">
+            <span class="avatar">{{ review.user_name.slice(0, 1) }}</span>
+            <div class="grow">
+              <div class="meta">
+                <b>{{ review.user_name }}</b>
+                <span class="stars">
+                  <span v-for="n in 5" :key="n" :class="['star', review.rating >= n ? 'full' : 'empty']">★</span>
+                </span>
+              </div>
+              <div>{{ review.content }}</div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section v-if="related.length" class="section">
         <div class="section-head"><h2>同类安利</h2><span>同一个商品的其他分享</span></div>

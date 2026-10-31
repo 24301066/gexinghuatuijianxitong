@@ -87,8 +87,6 @@ onMounted(load)
 
 <template>
   <section>
-    <button class="link back-link" type="button" @click="router.back()">← 返回</button>
-
     <div v-if="loading" class="empty">加载中…</div>
     <div v-else-if="error" class="notice">{{ error }}</div>
 
