@@ -15,7 +15,7 @@ const route = useRoute()
 const keyword = ref('')
 
 const isLogin = computed(() => route.name === 'login')
-const showBack = computed(() => !['home', 'discover', 'messages', 'me', 'login', 'about'].includes(String(route.name)))
+const showBack = computed(() => !['home', 'discover', 'messages', 'me', 'login'].includes(String(route.name)))
 
 watch(
   () => route.name,

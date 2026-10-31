@@ -78,7 +78,8 @@ watch(() => route.params.authorId, () => {
           <div v-for="row in reviews" :key="row.review_id" class="row-item review-item">
             <span class="avatar">{{ (author.username || 'U').slice(0, 1) }}</span>
             <div class="grow">
-              <div style="font-weight: 700">{{ row.item_title }}</div>
+              <RouterLink :to="{ name: 'item', params: { itemId: row.item_id } }"
+                          style="font-weight: 700">{{ row.item_title }} ›</RouterLink>
               <div class="stars">
                 <span v-for="n in 5" :key="n" :class="['star', row.rating >= n ? 'full' : 'empty']">★</span>
               </div>

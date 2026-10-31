@@ -72,11 +72,5 @@ function switchAccount() {
         </button>
       </div>
     </div>
-
-    <div class="section-card">
-      <div class="menu-list">
-        <RouterLink class="menu-row" to="/about"><span>关于版本</span><span class="arrow">›</span></RouterLink>
-      </div>
-    </div>
   </section>
 </template>
