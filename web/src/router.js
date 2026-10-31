@@ -6,6 +6,7 @@ import MeView from './views/MeView.vue'
 import LoginView from './views/LoginView.vue'
 import ItemView from './views/ItemView.vue'
 import PostView from './views/PostView.vue'
+import ShopView from './views/ShopView.vue'
 import AuthorView from './views/AuthorView.vue'
 import CartView from './views/CartView.vue'
 import CheckoutView from './views/CheckoutView.vue'
@@ -35,6 +36,7 @@ const router = createRouter({
     { path: '/cart', name: 'cart', component: CartView },
     { path: '/checkout', name: 'checkout', component: CheckoutView },
     { path: '/items/:itemId', name: 'item', component: ItemView },
+    { path: '/shops/:merchantId', name: 'shop', component: ShopView },
     { path: '/posts/:postId', name: 'post', component: PostView },
     { path: '/authors/:authorId', name: 'author', component: AuthorView },
     { path: '/login', name: 'login', component: LoginView, meta: { public: true } },

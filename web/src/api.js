@@ -116,3 +116,10 @@ api.oauthLogin = (provider) =>
   request(`/auth/oauth/${provider}`, { method: 'POST', body: {}, auth: false })
 api.bindPhone = (bindToken, phone, code, username) =>
   request('/auth/bind-phone', { method: 'POST', body: { bind_token: bindToken, phone, code, username }, auth: false })
+
+
+// ------------------------------------------------------- catalog extras
+api.itemDetail = (itemId) => request(`/items/${encodeURIComponent(itemId)}/detail`, { auth: false })
+api.reviews = (itemId) => request(`/items/${encodeURIComponent(itemId)}/reviews`, { auth: false })
+api.shop = (merchantId) => request(`/merchants/${encodeURIComponent(merchantId)}`, { auth: false })
+api.merchants = () => request('/merchants', { auth: false })

@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+from .models import utcnow
+
 CATALOG: dict[str, dict] = {
     "美妆个护": {
         "bases": ["保湿面膜", "氨基酸洁面乳", "烟酰胺精华", "清透防晒霜", "丝绒口红",
@@ -256,4 +258,55 @@ def build_dwells(rng: np.random.Generator, users: list[dict], posts: list[dict],
                                               seconds=float(rng.integers(0, 86400))),
             })
     rows.sort(key=lambda row: row["created_at"])
+    return rows
+
+MERCHANTS = [
+    ("M01", "花间研究所", "美妆个护", "专注温和配方与敏感肌护理，自有实验室。", 4.9),
+    ("M02", "原点数码", "数码配件", "数码配件集合店，主推键盘、硬盘与充电设备。", 4.8),
+    ("M03", "南山食集", "食品饮料", "源头采购，咖啡、坚果与冲饮都有。", 4.7),
+    ("M04", "木上家居", "家居日用", "日式简约家居，收纳与厨房小物见长。", 4.8),
+    ("M05", "野行户外", "运动户外", "轻户外装备，露营与徒步用品。", 4.6),
+    ("M06", "净屋生活", "家居日用", "清洁与收纳工具，主打实用。", 4.7),
+]
+
+REVIEW_TEXTS = {
+    5: ["包装完好，物流很快，和安利里说的一样。", "用了一周来评价，确实好用，回购。",
+        "质感超出预期，细节做得不错。", "第二次买了，家里人都说好。"],
+    4: ["整体不错，就是包装可以再精致点。", "和描述基本一致，性价比可以。",
+        "用着还行，物流稍微慢了一天。"],
+    3: ["一般般，能用但没惊喜。", "和图片有一点点色差。"],
+}
+
+
+def build_merchants(items: list[dict]) -> list[dict]:
+    categories = sorted({item["category"] for item in items})
+    rows = []
+    for index, (merchant_id, name, category, description, rating) in enumerate(MERCHANTS):
+        if category not in categories:
+            continue
+        rows.append({
+            "merchant_id": merchant_id,
+            "name": name,
+            "category": category,
+            "description": description,
+            "rating": rating,
+            "followers": 1200 + index * 830,
+        })
+    return rows
+
+
+def build_reviews(rng, items: list[dict], users: list[dict], per_item: int = 6) -> list[dict]:
+    buyers = [user for user in users if user["role"] != "admin"] or users
+    rows = []
+    for item in items:
+        count = int(rng.integers(max(1, per_item - 2), per_item + 3))
+        for _ in range(count):
+            rating = int(rng.choice([5, 5, 5, 4, 4, 3]))
+            rows.append({
+                "item_id": item["item_id"],
+                "user_id": buyers[int(rng.integers(0, len(buyers)))]["user_id"],
+                "rating": rating,
+                "content": REVIEW_TEXTS[rating][int(rng.integers(0, len(REVIEW_TEXTS[rating])))],
+                "created_at": utcnow() - timedelta(days=float(rng.uniform(0, 90))),
+            })
     return rows

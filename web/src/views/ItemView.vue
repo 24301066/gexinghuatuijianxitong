@@ -12,26 +12,32 @@ const router = useRouter()
 const toast = useToastStore()
 const shop = useShopStore()
 
-const item = ref(null)
+const detail = ref(null)
 const similar = ref([])
 const posts = ref([])
 const loading = ref(true)
 const error = ref('')
 const busy = ref(false)
 
+const item = computed(() => detail.value?.item || null)
+const merchant = computed(() => detail.value?.merchant || null)
+const reviews = computed(() => detail.value?.reviews || [])
 const cover = computed(() => (item.value ? mediaUrl(item.value.cover_url) : ''))
-const tags = computed(() => item.value?.tags || [])
+const stars = computed(() => {
+  const value = Math.round((detail.value?.rating || 0) * 2) / 2
+  return [1, 2, 3, 4, 5].map((n) => (value >= n ? 'full' : value >= n - 0.5 ? 'half' : 'empty'))
+})
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    const data = await api.item(route.params.itemId)
-    item.value = data
-    api.postEvent(data.item_id, 'view').catch(() => {})
+    const data = await api.itemDetail(route.params.itemId)
+    detail.value = data
+    api.postEvent(data.item.item_id, 'view').catch(() => {})
     const [near, shares] = await Promise.all([
-      api.similar(data.item_id, 6).catch(() => ({ items: [] })),
-      api.posts({ productId: data.item_id, size: 4 }).catch(() => ({ posts: [] }))
+      api.similar(data.item.item_id, 6).catch(() => ({ items: [] })),
+      api.posts({ productId: data.item.item_id, size: 4 }).catch(() => ({ posts: [] }))
     ])
     similar.value = near.items || []
     posts.value = shares.posts || []
@@ -47,10 +53,8 @@ async function act(type) {
   busy.value = true
   try {
     await api.postEvent(item.value.item_id, type)
-    if (type === 'cart') {
-      await shop.addToCart(item.value)
-    }
-    toast.push(type === 'purchase' ? '已模拟购买，推荐会更新' : '已加入购物车', 'info')
+    if (type === 'cart') await shop.addToCart(item.value)
+    toast.push(type === 'purchase' ? '已模拟购买，推荐会更新' : '已加入购物车')
   } catch (err) {
     toast.push(err.message, 'error')
   } finally {
@@ -71,52 +75,88 @@ onMounted(load)
 
 <template>
   <section>
-    <button class="link" type="button" @click="router.back()">← 返回</button>
+    <button class="link back-link" type="button" @click="router.back()">← 返回</button>
 
     <div v-if="loading" class="empty">加载中…</div>
     <div v-else-if="error" class="notice">{{ error }}</div>
 
-    <template v-else-if="item">
+    <template v-else-if="detail">
       <div class="detail">
         <div class="cover">
           <img :src="cover" :alt="item.title" />
         </div>
         <div>
           <h1>{{ item.title }}</h1>
-          <div class="meta">
-            <span>{{ item.category }}</span>
+          <div class="meta" style="margin: 6px 0">
+            <span class="stars">
+              <span v-for="(kind, index) in stars" :key="index" :class="['star', kind]">★</span>
+            </span>
+            <b>{{ detail.rating.toFixed(1) }}</b>
             <span class="dot" />
-            <span class="price" style="font-size: 22px">¥{{ Number(item.price).toFixed(0) }}</span>
+            <span>{{ detail.review_count }} 条评价</span>
+            <span class="dot" />
+            <span>{{ item.category }}</span>
           </div>
+          <div class="price" style="font-size: 26px">¥{{ Number(item.price).toFixed(0) }}</div>
           <div class="tag-row">
-            <span v-for="tag in tags" :key="tag" class="tag">{{ tag }}</span>
+            <span v-for="tag in item.tags" :key="tag" class="tag">{{ tag }}</span>
           </div>
           <p class="body-text">{{ item.description }}</p>
-          <div style="display: flex; gap: 10px; margin-top: 18px">
+
+          <div style="display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap">
             <button class="btn" type="button" :disabled="busy" @click="act('cart')">加入购物车</button>
             <button class="btn ghost" type="button" :disabled="busy" @click="act('purchase')">模拟购买</button>
             <button class="btn ghost" type="button" @click="toggleFav">
               {{ favorite ? '♥ 已收藏' : '♡ 收藏' }}
             </button>
           </div>
+
+          <RouterLink v-if="merchant" class="merchant-card"
+                      :to="{ name: 'shop', params: { merchantId: merchant.merchant_id } }">
+            <span class="avatar">{{ merchant.name.slice(0, 1) }}</span>
+            <div class="grow">
+              <div style="font-weight: 700">{{ merchant.name }} <span class="tag">官方店铺</span></div>
+              <div class="meta">
+                评分 {{ merchant.rating }} · {{ merchant.item_count }} 件商品 · {{ merchant.followers }} 关注
+              </div>
+            </div>
+            <span class="arrow">进店 ›</span>
+          </RouterLink>
         </div>
       </div>
 
-      <section v-if="posts.length" class="section">
+      <section class="section">
         <div class="section-head">
-          <h2>买家安利</h2>
-          <span>{{ posts.length }} 条分享</span>
+          <h2>商品评价</h2>
+          <span>{{ detail.rating.toFixed(1) }} 分 · 共 {{ detail.review_count }} 条</span>
         </div>
+        <div v-if="reviews.length" class="row-list">
+          <div v-for="review in reviews" :key="review.review_id" class="row-item review-item">
+            <span class="avatar">{{ review.user_name.slice(0, 1) }}</span>
+            <div class="grow">
+              <div class="meta">
+                <b>{{ review.user_name }}</b>
+                <span class="stars">
+                  <span v-for="n in 5" :key="n" :class="['star', review.rating >= n ? 'full' : 'empty']">★</span>
+                </span>
+              </div>
+              <div>{{ review.content }}</div>
+              <div class="meta">{{ new Date(review.created_at).toLocaleDateString('zh-CN') }}</div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty">还没有评价</div>
+      </section>
+
+      <section v-if="posts.length" class="section">
+        <div class="section-head"><h2>买家安利</h2><span>{{ posts.length }} 条分享</span></div>
         <div class="masonry">
           <PostCard v-for="post in posts" :key="post.post_id" :post="post" />
         </div>
       </section>
 
       <section v-if="similar.length" class="section">
-        <div class="section-head">
-          <h2>相似推荐</h2>
-          <span>来自 /items/{id}/similar</span>
-        </div>
+        <div class="section-head"><h2>相似推荐</h2></div>
         <div class="grid">
           <ProductCard v-for="row in similar" :key="row.item_id" :item="row" />
         </div>

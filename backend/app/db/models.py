@@ -173,3 +173,26 @@ class VerificationCode(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     attempts: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+class Merchant(Base):
+    __tablename__ = "merchants"
+
+    merchant_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    category: Mapped[str] = mapped_column(String(60), nullable=False, default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    rating: Mapped[float] = mapped_column(Float, nullable=False, default=4.8)
+    followers: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    review_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    item_id: Mapped[str] = mapped_column(ForeignKey("items.item_id"), nullable=False,
+                                         index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+    rating: Mapped[int] = mapped_column(default=5)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

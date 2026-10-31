@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from .. import __version__
 from ..core.errors import ApiError, request_id_of
 from ..core.security import create_token, decode_token, hash_password, verify_password
-from ..db.models import (Address, CartItem, Dwell, Event, Favorite, Item, Order, Post, Search, User, VerificationCode, utcnow)
+from ..db.models import (Address, CartItem, Dwell, Event, Favorite, Item, Merchant, Order, Post, Review, Search, User, VerificationCode, utcnow)
 from ..media import covers
 from ..runtime import Runtime
 from . import schemas
@@ -897,3 +897,75 @@ def bind_phone(payload: schemas.BindPhoneIn, db: Session = Depends(get_db),
         user.provider = provider
         db.flush()
     return _token_for(runtime, user)
+
+def _merchant_out(db: Session, merchant: Merchant) -> schemas.MerchantOut:
+    count = db.scalar(select(func.count()).select_from(Item)
+                      .where(Item.category == merchant.category)) or 0
+    return schemas.MerchantOut(merchant_id=merchant.merchant_id, name=merchant.name,
+                               category=merchant.category,
+                               description=merchant.description or "",
+                               rating=float(merchant.rating), followers=merchant.followers,
+                               item_count=count,
+                               cover_url="")
+
+
+def _reviews_for(db: Session, item_id: str, limit: int = 20) -> list[schemas.ReviewOut]:
+    rows = db.scalars(select(Review).where(Review.item_id == item_id)
+                      .order_by(Review.created_at.desc()).limit(limit)).all()
+    names = {
+        user.user_id: user.username
+        for user in db.scalars(select(User).where(
+            User.user_id.in_({row.user_id for row in rows})))
+    } if rows else {}
+    return [schemas.ReviewOut(review_id=row.review_id,
+                              user_name=names.get(row.user_id, "匿名买家"),
+                              rating=row.rating, content=row.content or "",
+                              created_at=row.created_at) for row in rows]
+
+
+def _rating_of(db: Session, item_id: str) -> tuple[float, int]:
+    average, count = db.execute(select(func.avg(Review.rating), func.count(Review.review_id))
+                                .where(Review.item_id == item_id)).one()
+    return (round(float(average), 2) if average else 0.0, int(count or 0))
+
+
+@router.get("/items/{item_id}/reviews", response_model=schemas.ReviewSummaryOut,
+            tags=["catalog"])
+def item_reviews(item_id: str, limit: int = Query(20, ge=1, le=100),
+                 db: Session = Depends(get_db)) -> schemas.ReviewSummaryOut:
+    if db.get(Item, item_id) is None:
+        raise ApiError(404, f"商品 {item_id} 不存在")
+    average, count = _rating_of(db, item_id)
+    return schemas.ReviewSummaryOut(item_id=item_id, average=average, count=count,
+                                    reviews=_reviews_for(db, item_id, limit))
+
+
+@router.get("/items/{item_id}/detail", response_model=schemas.ItemDetailOut, tags=["catalog"])
+def item_detail(item_id: str, db: Session = Depends(get_db)) -> schemas.ItemDetailOut:
+    item = db.get(Item, item_id)
+    if item is None:
+        raise ApiError(404, f"商品 {item_id} 不存在")
+    merchant = db.scalar(select(Merchant).where(Merchant.category == item.category))
+    average, count = _rating_of(db, item_id)
+    return schemas.ItemDetailOut(item=_item_out(item),
+                                 merchant=_merchant_out(db, merchant) if merchant else None,
+                                 rating=average, review_count=count,
+                                 reviews=_reviews_for(db, item_id, 20))
+
+
+@router.get("/merchants", response_model=list[schemas.MerchantOut], tags=["catalog"])
+def list_merchants(db: Session = Depends(get_db)) -> list[schemas.MerchantOut]:
+    rows = db.scalars(select(Merchant).order_by(Merchant.rating.desc())).all()
+    return [_merchant_out(db, row) for row in rows]
+
+
+@router.get("/merchants/{merchant_id}", response_model=schemas.ShopOut, tags=["catalog"])
+def merchant_shop(merchant_id: str, size: int = Query(60, ge=1, le=200),
+                  db: Session = Depends(get_db)) -> schemas.ShopOut:
+    merchant = db.get(Merchant, merchant_id)
+    if merchant is None:
+        raise ApiError(404, "店铺不存在")
+    rows = db.scalars(select(Item).where(Item.category == merchant.category)
+                      .order_by(Item.item_id).limit(size)).all()
+    return schemas.ShopOut(merchant=_merchant_out(db, merchant),
+                           items=[_item_out(row) for row in rows])

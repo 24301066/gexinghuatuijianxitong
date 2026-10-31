@@ -658,6 +658,46 @@
         "title": "InsightsOut",
         "type": "object"
       },
+      "ItemDetailOut": {
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/ItemOut"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MerchantOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "number"
+          },
+          "review_count": {
+            "title": "Review Count",
+            "type": "integer"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewOut"
+            },
+            "title": "Reviews",
+            "type": "array"
+          }
+        },
+        "required": [
+          "item",
+          "rating",
+          "review_count",
+          "reviews"
+        ],
+        "title": "ItemDetailOut",
+        "type": "object"
+      },
       "ItemOut": {
         "properties": {
           "category": {
@@ -755,6 +795,54 @@
           "password"
         ],
         "title": "LoginIn",
+        "type": "object"
+      },
+      "MerchantOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "cover_url": {
+            "default": "",
+            "title": "Cover Url",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "followers": {
+            "title": "Followers",
+            "type": "integer"
+          },
+          "item_count": {
+            "default": 0,
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "merchant_id": {
+            "title": "Merchant Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "number"
+          }
+        },
+        "required": [
+          "merchant_id",
+          "name",
+          "category",
+          "description",
+          "rating",
+          "followers"
+        ],
+        "title": "MerchantOut",
         "type": "object"
       },
       "OAuthOut": {
@@ -1228,6 +1316,71 @@
         "title": "RegisterIn",
         "type": "object"
       },
+      "ReviewOut": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "integer"
+          },
+          "review_id": {
+            "title": "Review Id",
+            "type": "integer"
+          },
+          "user_name": {
+            "title": "User Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "review_id",
+          "user_name",
+          "rating",
+          "content",
+          "created_at"
+        ],
+        "title": "ReviewOut",
+        "type": "object"
+      },
+      "ReviewSummaryOut": {
+        "properties": {
+          "average": {
+            "title": "Average",
+            "type": "number"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "item_id": {
+            "title": "Item Id",
+            "type": "string"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewOut"
+            },
+            "title": "Reviews",
+            "type": "array"
+          }
+        },
+        "required": [
+          "item_id",
+          "average",
+          "count",
+          "reviews"
+        ],
+        "title": "ReviewSummaryOut",
+        "type": "object"
+      },
       "SearchHitOut": {
         "properties": {
           "created_at": {
@@ -1282,6 +1435,26 @@
           "recommended"
         ],
         "title": "SearchOut",
+        "type": "object"
+      },
+      "ShopOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "merchant": {
+            "$ref": "#/components/schemas/MerchantOut"
+          }
+        },
+        "required": [
+          "merchant",
+          "items"
+        ],
+        "title": "ShopOut",
         "type": "object"
       },
       "SimilarOut": {
@@ -2602,6 +2775,102 @@
         ]
       }
     },
+    "/api/v1/items/{item_id}/detail": {
+      "get": {
+        "operationId": "item_detail_api_v1_items__item_id__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Item Detail",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/items/{item_id}/reviews": {
+      "get": {
+        "operationId": "item_reviews_api_v1_items__item_id__reviews_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Item Reviews",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/api/v1/items/{item_id}/similar": {
       "get": {
         "operationId": "similar_api_v1_items__item_id__similar_get",
@@ -2784,6 +3053,85 @@
         "summary": "Media",
         "tags": [
           "ugc"
+        ]
+      }
+    },
+    "/api/v1/merchants": {
+      "get": {
+        "operationId": "list_merchants_api_v1_merchants_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MerchantOut"
+                  },
+                  "title": "Response List Merchants Api V1 Merchants Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Merchants",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/merchants/{merchant_id}": {
+      "get": {
+        "operationId": "merchant_shop_api_v1_merchants__merchant_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "merchant_id",
+            "required": true,
+            "schema": {
+              "title": "Merchant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 60,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Merchant Shop",
+        "tags": [
+          "catalog"
         ]
       }
     },

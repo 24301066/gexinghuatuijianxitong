@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..config import load_settings
 from ..core.security import hash_password
 from . import demo_data
-from .models import Dwell, Event, Item, Post, Search, User, utcnow
+from .models import (Dwell, Event, Item, Merchant, Post, Review, Search, User, utcnow)
 from .session import init_db, make_engine, make_session_factory
 
 
@@ -47,6 +47,8 @@ def seed_demo(session: Session, *, seed: int | None = None, users: int = 200,
     post_rows = demo_data.build_posts(rng, item_rows, user_rows, posts, now)
     search_rows = demo_data.build_searches(rng, user_rows, item_rows, 4, now)
     dwell_rows = demo_data.build_dwells(rng, user_rows, post_rows, 4, now)
+    merchant_rows = demo_data.build_merchants(item_rows)
+    review_rows = demo_data.build_reviews(rng, item_rows, user_rows, 6)
 
     session.add_all(Item(**row) for row in item_rows)
     session.add_all(User(**row) for row in user_rows)
@@ -55,6 +57,8 @@ def seed_demo(session: Session, *, seed: int | None = None, users: int = 200,
     session.add_all(Post(**row) for row in post_rows)
     session.add_all(Search(**row) for row in search_rows)
     session.add_all(Dwell(**row) for row in dwell_rows)
+    session.add_all(Merchant(**row) for row in merchant_rows)
+    session.add_all(Review(**row) for row in review_rows)
     session.commit()
 
     return _stats(len(item_rows), len(user_rows), len(event_rows), len(post_rows),
@@ -62,39 +66,55 @@ def seed_demo(session: Session, *, seed: int | None = None, users: int = 200,
                   demo_data.dataset_fingerprint(item_rows, user_rows, event_rows))
 
 
-def seed_content(session: Session, rec_config: dict) -> dict | None:
-    """Add UGC content to a database that already has catalog + events."""
-    if session.scalar(select(func.count()).select_from(Post)):
-        return None
-    demo = (rec_config.get("data") or {}).get("demo") or {}
-    rng = np.random.default_rng(int(rec_config.get("seed", 20261029)) + 7)
-    now = utcnow()
-
-    items = [
+def _db_items(session: Session) -> list[dict]:
+    return [
         {"item_id": row.item_id, "title": row.title, "category": row.category,
          "price": float(row.price), "tags": row.tags or ""}
         for row in session.scalars(select(Item))
     ]
-    users = [
-        {"user_id": row.user_id, "role": row.role}
-        for row in session.scalars(select(User))
-    ]
+
+
+def _db_users(session: Session) -> list[dict]:
+    return [{"user_id": row.user_id, "role": row.role} for row in session.scalars(select(User))]
+
+
+def seed_content(session: Session, rec_config: dict) -> dict | None:
+    """Add UGC / merchants / reviews to a database that already has the catalog."""
+    demo = (rec_config.get("data") or {}).get("demo") or {}
+    rng = np.random.default_rng(int(rec_config.get("seed", 20261029)) + 7)
+    now = utcnow()
+    items = _db_items(session)
+    users = _db_users(session)
     if not items or not users:
         return None
 
-    post_rows = demo_data.build_posts(rng, items, users, int(demo.get("posts", 60)), now)
-    search_rows = demo_data.build_searches(rng, users, items, 4, now)
-    dwell_rows = demo_data.build_dwells(rng, users, post_rows, 4, now)
-    session.add_all(Post(**row) for row in post_rows)
-    session.add_all(Search(**row) for row in search_rows)
-    session.add_all(Dwell(**row) for row in dwell_rows)
+    created: dict[str, int] = {}
+    if not session.scalar(select(func.count()).select_from(Post)):
+        post_rows = demo_data.build_posts(rng, items, users, int(demo.get("posts", 60)), now)
+        search_rows = demo_data.build_searches(rng, users, items, 4, now)
+        dwell_rows = demo_data.build_dwells(rng, users, post_rows, 4, now)
+        session.add_all(Post(**row) for row in post_rows)
+        session.add_all(Search(**row) for row in search_rows)
+        session.add_all(Dwell(**row) for row in dwell_rows)
+        created.update(posts=len(post_rows), searches=len(search_rows),
+                       dwells=len(dwell_rows))
+
+    if not session.scalar(select(func.count()).select_from(Merchant)):
+        merchant_rows = demo_data.build_merchants(items)
+        session.add_all(Merchant(**row) for row in merchant_rows)
+        created["merchants"] = len(merchant_rows)
+
+    if not session.scalar(select(func.count()).select_from(Review)):
+        review_rows = demo_data.build_reviews(rng, items, users, 6)
+        session.add_all(Review(**row) for row in review_rows)
+        created["reviews"] = len(review_rows)
+
     session.commit()
-    return {"posts": len(post_rows), "searches": len(search_rows),
-            "dwells": len(dwell_rows)}
+    return created or None
 
 
 def ensure_seeded(session: Session, rec_config: dict) -> dict | None:
-    """Seed the catalog when empty, and UGC content when the catalog already exists."""
+    """Seed the catalog when empty, and incremental content when the catalog exists."""
     demo = (rec_config.get("data") or {}).get("demo") or {}
     existing = session.scalar(select(func.count()).select_from(Item)) or 0
     if existing:
@@ -128,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     demo = (settings.rec.get("data") or {}).get("demo") or {}
     with factory() as session:
         if args.force:
-            for model in (Dwell, Search, Post, Event, Item, User):
+            for model in (Review, Merchant, Dwell, Search, Post, Event, Item, User):
                 session.query(model).delete()
             session.commit()
         stats = seed_demo(

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSessionStore, useToastStore } from './stores'
 import { useShopStore } from './stores/shop'
@@ -13,6 +13,9 @@ if (session.loggedIn) { shop.init().catch(() => {}) }
 const router = useRouter()
 const route = useRoute()
 const keyword = ref('')
+
+const isLogin = computed(() => route.name === 'login')
+const showBack = computed(() => !['home', 'discover', 'messages', 'me', 'login', 'about'].includes(String(route.name)))
 
 watch(
   () => route.name,
@@ -51,7 +54,7 @@ function logout() {
         <span>种草集</span>
       </RouterLink>
 
-      <nav class="nav">
+      <nav v-if="!isLogin" class="nav">
         <RouterLink to="/">首页</RouterLink>
         <RouterLink to="/discover">发现</RouterLink>
         <RouterLink to="/messages" class="nav-msg">
@@ -61,27 +64,28 @@ function logout() {
         <RouterLink to="/me">我的</RouterLink>
       </nav>
 
-      <div class="search-box">
+      <div v-if="!isLogin" class="search-box">
         <span aria-hidden="true">🔍</span>
         <input v-model="keyword" placeholder="搜商品、安利、类目…" @keyup.enter="submitSearch" />
         <button class="link" type="button" @click="submitSearch">搜索</button>
       </div>
 
-      <RouterLink to="/cart" class="cart-pill" :title="`购物车 ${shop.cartCount} 件`">
+      <RouterLink v-if="!isLogin" to="/cart" class="cart-pill" :title="`购物车 ${shop.cartCount} 件`">
         🛒<span v-if="shop.cartCount" class="count">{{ shop.cartCount }}</span>
       </RouterLink>
 
-      <template v-if="session.loggedIn">
+      <template v-if="session.loggedIn && !isLogin">
         <RouterLink class="who" to="/me">
           <span class="avatar">{{ (session.user?.username || 'U').slice(0, 1).toUpperCase() }}</span>
           {{ session.user?.username }}
         </RouterLink>
         <button class="link" type="button" @click="logout">退出</button>
       </template>
-      <RouterLink v-else class="btn small" to="/login">登录</RouterLink>
+      <RouterLink v-else-if="!isLogin" class="btn small" to="/login">登录</RouterLink>
     </header>
 
     <main class="content">
+      <button v-if="showBack" class="link back-link" type="button" @click="router.back()">← 返回</button>
       <RouterView />
     </main>
 

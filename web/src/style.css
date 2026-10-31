@@ -555,3 +555,18 @@ button, input, select { font: inherit; color: inherit; }
   color: var(--muted); font-weight: 700; cursor: pointer;
 }
 .login-tabs button.active { background: #fff; color: var(--accent); box-shadow: 0 2px 8px rgba(65, 45, 30, 0.08); }
+
+
+/* ------------------------------------------------------------ reviews */
+.back-link { display: inline-block; margin-bottom: 10px; }
+.stars { display: inline-flex; gap: 2px; font-size: 15px; }
+.star.full { color: #f5a623; }
+.star.half { color: #f5a623; opacity: 0.55; }
+.star.empty { color: #ddd6cd; }
+.merchant-card {
+  display: flex; align-items: center; gap: 12px; margin-top: 18px;
+  padding: 14px; border-radius: 16px; background: #faf5ef;
+  border: 1px solid var(--line);
+}
+.merchant-card .arrow { color: var(--accent); font-weight: 700; }
+.review-item { align-items: flex-start; }

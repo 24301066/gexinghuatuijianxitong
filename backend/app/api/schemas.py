@@ -303,3 +303,41 @@ class BindPhoneIn(BaseModel):
     code: str = Field(min_length=4, max_length=8)
     username: str | None = Field(default=None, min_length=3, max_length=20,
                                  pattern=r"^[A-Za-z0-9_]+$")
+
+class MerchantOut(BaseModel):
+    merchant_id: str
+    name: str
+    category: str
+    description: str
+    rating: float
+    followers: int
+    item_count: int = 0
+    cover_url: str = ""
+
+
+class ReviewOut(BaseModel):
+    review_id: int
+    user_name: str
+    rating: int
+    content: str
+    created_at: datetime
+
+
+class ReviewSummaryOut(BaseModel):
+    item_id: str
+    average: float
+    count: int
+    reviews: list[ReviewOut]
+
+
+class ItemDetailOut(BaseModel):
+    item: ItemOut
+    merchant: MerchantOut | None = None
+    rating: float
+    review_count: int
+    reviews: list[ReviewOut]
+
+
+class ShopOut(BaseModel):
+    merchant: MerchantOut
+    items: list[ItemOut]
