@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, mediaUrl } from '../api'
 import PostCard from '../components/PostCard.vue'
@@ -71,6 +71,11 @@ onMounted(() => {
   load()
   window.addEventListener('pagehide', reportDwell)
 })
+watch(() => route.params.postId, () => {
+  galleryIndex.value = 0
+  load()
+})
+
 onBeforeUnmount(() => {
   reportDwell()
   window.removeEventListener('pagehide', reportDwell)

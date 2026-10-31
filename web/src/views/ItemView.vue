@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, mediaUrl } from '../api'
 import { useToastStore } from '../stores'
@@ -83,6 +83,12 @@ async function toggleFav() {
 }
 
 onMounted(load)
+
+// 同一个详情组件复用时（商品→相似商品）必须重新加载，否则页面停在上一件商品
+watch(() => route.params.itemId, () => {
+  galleryIndex.value = 0
+  load()
+})
 </script>
 
 <template>
