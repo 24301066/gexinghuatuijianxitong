@@ -588,3 +588,14 @@ button, input, select { font: inherit; color: inherit; }
   background: rgba(255, 255, 255, 0.6);
 }
 .gallery-dots button.active { background: #fff; width: 18px; border-radius: 999px; }
+
+/* 修复：星星的 empty 类与空状态 .empty 冲突（出现虚线大框、名字掉行） */
+.stars { display: inline-flex; align-items: center; gap: 2px; line-height: 1; }
+.stars .star {
+  display: inline-block; padding: 0; margin: 0; border: 0; background: none;
+  box-shadow: none; font-size: 15px; line-height: 1; width: auto; height: auto;
+}
+.stars .star.full { color: #f5a623; }
+.stars .star.half { color: #f5a623; opacity: 0.55; }
+.stars .star.empty { color: #ddd6cd; border: 0; padding: 0; background: none; }
+.review-item .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
