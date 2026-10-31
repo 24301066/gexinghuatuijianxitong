@@ -262,3 +262,44 @@ class OrderOut(BaseModel):
     items: list[CartRowOut]
     address: AddressOut | None = None
     created_at: datetime
+
+class SmsSendIn(BaseModel):
+    phone: str = Field(pattern=r"^1[3-9]\d{9}$")
+    purpose: str = Field(default="register", pattern="^(register|login|bind)$")
+
+
+class SmsSendOut(BaseModel):
+    ttl: int
+    dev_code: str | None = None
+    message: str = "验证码已发送"
+
+
+class PhoneRegisterIn(BaseModel):
+    phone: str = Field(pattern=r"^1[3-9]\d{9}$")
+    code: str = Field(min_length=4, max_length=8)
+    username: str = Field(min_length=3, max_length=20, pattern=r"^[A-Za-z0-9_]+$")
+    password: str = Field(min_length=6, max_length=64)
+
+
+class PhoneLoginIn(BaseModel):
+    phone: str = Field(pattern=r"^1[3-9]\d{9}$")
+    code: str = Field(min_length=4, max_length=8)
+
+
+class OAuthIn(BaseModel):
+    provider: str = Field(pattern="^(wechat|qq)$")
+
+
+class OAuthOut(BaseModel):
+    provider: str
+    bind_token: str
+    nickname: str
+    needs_phone: bool = True
+
+
+class BindPhoneIn(BaseModel):
+    bind_token: str = Field(min_length=10)
+    phone: str = Field(pattern=r"^1[3-9]\d{9}$")
+    code: str = Field(min_length=4, max_length=8)
+    username: str | None = Field(default=None, min_length=3, max_length=20,
+                                 pattern=r"^[A-Za-z0-9_]+$")

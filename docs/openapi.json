@@ -189,6 +189,47 @@
         "title": "AuthorOut",
         "type": "object"
       },
+      "BindPhoneIn": {
+        "properties": {
+          "bind_token": {
+            "minLength": 10,
+            "title": "Bind Token",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 8,
+            "minLength": 4,
+            "title": "Code",
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^1[3-9]\\d{9}$",
+            "title": "Phone",
+            "type": "string"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "minLength": 3,
+                "pattern": "^[A-Za-z0-9_]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "required": [
+          "bind_token",
+          "phone",
+          "code"
+        ],
+        "title": "BindPhoneIn",
+        "type": "object"
+      },
       "CartIn": {
         "properties": {
           "item_id": {
@@ -716,6 +757,34 @@
         "title": "LoginIn",
         "type": "object"
       },
+      "OAuthOut": {
+        "properties": {
+          "bind_token": {
+            "title": "Bind Token",
+            "type": "string"
+          },
+          "needs_phone": {
+            "default": true,
+            "title": "Needs Phone",
+            "type": "boolean"
+          },
+          "nickname": {
+            "title": "Nickname",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "bind_token",
+          "nickname"
+        ],
+        "title": "OAuthOut",
+        "type": "object"
+      },
       "OrderIn": {
         "properties": {
           "address_id": {
@@ -787,6 +856,63 @@
           "created_at"
         ],
         "title": "OrderOut",
+        "type": "object"
+      },
+      "PhoneLoginIn": {
+        "properties": {
+          "code": {
+            "maxLength": 8,
+            "minLength": 4,
+            "title": "Code",
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^1[3-9]\\d{9}$",
+            "title": "Phone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone",
+          "code"
+        ],
+        "title": "PhoneLoginIn",
+        "type": "object"
+      },
+      "PhoneRegisterIn": {
+        "properties": {
+          "code": {
+            "maxLength": 8,
+            "minLength": 4,
+            "title": "Code",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 64,
+            "minLength": 6,
+            "title": "Password",
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^1[3-9]\\d{9}$",
+            "title": "Phone",
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 20,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9_]+$",
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone",
+          "code",
+          "username",
+          "password"
+        ],
+        "title": "PhoneRegisterIn",
         "type": "object"
       },
       "PostOut": {
@@ -1189,6 +1315,55 @@
         "title": "SimilarOut",
         "type": "object"
       },
+      "SmsSendIn": {
+        "properties": {
+          "phone": {
+            "pattern": "^1[3-9]\\d{9}$",
+            "title": "Phone",
+            "type": "string"
+          },
+          "purpose": {
+            "default": "register",
+            "pattern": "^(register|login|bind)$",
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone"
+        ],
+        "title": "SmsSendIn",
+        "type": "object"
+      },
+      "SmsSendOut": {
+        "properties": {
+          "dev_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dev Code"
+          },
+          "message": {
+            "default": "验证码已发送",
+            "title": "Message",
+            "type": "string"
+          },
+          "ttl": {
+            "title": "Ttl",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ttl"
+        ],
+        "title": "SmsSendOut",
+        "type": "object"
+      },
       "TokenOut": {
         "properties": {
           "expires_in": {
@@ -1529,6 +1704,47 @@
         ]
       }
     },
+    "/api/v1/auth/bind-phone": {
+      "post": {
+        "operationId": "bind_phone_api_v1_auth_bind_phone_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindPhoneIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bind Phone",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "login_api_v1_auth_login_post",
@@ -1570,6 +1786,47 @@
         ]
       }
     },
+    "/api/v1/auth/login/phone": {
+      "post": {
+        "operationId": "login_with_phone_api_v1_auth_login_phone_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneLoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login With Phone",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/me": {
       "get": {
         "operationId": "me_api_v1_auth_me_get",
@@ -1586,6 +1843,48 @@
           }
         },
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/oauth/{provider}": {
+      "post": {
+        "operationId": "oauth_login_api_v1_auth_oauth__provider__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "title": "Provider",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oauth Login",
         "tags": [
           "auth"
         ]
@@ -1627,6 +1926,88 @@
           }
         },
         "summary": "Register",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/register/phone": {
+      "post": {
+        "operationId": "register_with_phone_api_v1_auth_register_phone_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneRegisterIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register With Phone",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sms/send": {
+      "post": {
+        "operationId": "send_sms_code_api_v1_auth_sms_send_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsSendIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsSendOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Sms Code",
         "tags": [
           "auth"
         ]

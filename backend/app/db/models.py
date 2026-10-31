@@ -39,6 +39,9 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    phone_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False, default="password")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
 
@@ -157,3 +160,16 @@ class Order(Base):
     address_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow,
                                                  index=True)
+
+class VerificationCode(Base):
+    """短信验证码：只存哈希，带过期时间与错误次数。"""
+
+    __tablename__ = "verification_codes"
+
+    code_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    phone: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    purpose: Mapped[str] = mapped_column(String(20), nullable=False, default="register")
+    code_hash: Mapped[str] = mapped_column(String(120), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    attempts: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

@@ -104,3 +104,15 @@ api.setDefaultAddress = (id) => request(`/addresses/${encodeURIComponent(id)}/de
 api.getOrders = (status = 'all') => request(`/orders?status=${encodeURIComponent(status)}`)
 api.createOrder = (addressId, payment) => request('/orders', { method: 'POST', body: { address_id: addressId, payment } })
 api.orderAction = (orderId, action) => request(`/orders/${encodeURIComponent(orderId)}/${action}`, { method: 'POST' })
+
+// ------------------------------------------------------------ auth extras
+api.sendSmsCode = (phone, purpose = 'register') =>
+  request('/auth/sms/send', { method: 'POST', body: { phone, purpose }, auth: false })
+api.registerPhone = (phone, code, username, password) =>
+  request('/auth/register/phone', { method: 'POST', body: { phone, code, username, password }, auth: false })
+api.loginPhone = (phone, code) =>
+  request('/auth/login/phone', { method: 'POST', body: { phone, code }, auth: false })
+api.oauthLogin = (provider) =>
+  request(`/auth/oauth/${provider}`, { method: 'POST', body: {}, auth: false })
+api.bindPhone = (bindToken, phone, code, username) =>
+  request('/auth/bind-phone', { method: 'POST', body: { bind_token: bindToken, phone, code, username }, auth: false })

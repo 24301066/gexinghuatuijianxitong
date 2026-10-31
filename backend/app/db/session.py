@@ -27,6 +27,23 @@ def make_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 def init_db(engine: Engine) -> None:
     Base.metadata.create_all(engine)
+    _ensure_user_columns(engine)
+
+
+def _ensure_user_columns(engine: Engine) -> None:
+    """SQLite 的 create_all 不会给已有表加列，这里做一次轻量迁移。"""
+    wanted = {
+        "phone": "VARCHAR(20)",
+        "phone_verified": "BOOLEAN DEFAULT 0",
+        "provider": "VARCHAR(20) DEFAULT 'password'",
+    }
+    with engine.begin() as conn:
+        existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)")}
+        if not existing:
+            return
+        for column, ddl in wanted.items():
+            if column not in existing:
+                conn.exec_driver_sql(f"ALTER TABLE users ADD COLUMN {column} {ddl}")
 
 
 def sqlite_url(path: Path) -> str:

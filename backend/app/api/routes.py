@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import secrets
 from collections import Counter
 from uuid import uuid4
 from datetime import datetime, timedelta
@@ -14,8 +17,8 @@ from sqlalchemy.orm import Session
 
 from .. import __version__
 from ..core.errors import ApiError, request_id_of
-from ..core.security import create_token, hash_password, verify_password
-from ..db.models import (Address, CartItem, Dwell, Event, Favorite, Item, Order, Post, Search, User, utcnow)
+from ..core.security import create_token, decode_token, hash_password, verify_password
+from ..db.models import (Address, CartItem, Dwell, Event, Favorite, Item, Order, Post, Search, User, VerificationCode, utcnow)
 from ..media import covers
 from ..runtime import Runtime
 from . import schemas
@@ -760,3 +763,137 @@ def update_order(order_id: str, action: str, db: Session = Depends(get_db),
     order.status = transitions[action]
     db.flush()
     return _order_out(order)
+
+# --------------------------------------------------------- phone / SMS / OAuth
+
+SMS_COOLDOWN_SECONDS = 60
+SMS_TTL_SECONDS = 300
+SMS_MAX_ATTEMPTS = 5
+
+
+def _code_hash(phone: str, code: str) -> str:
+    return hashlib.sha256(f"{phone}:{code}".encode()).hexdigest()
+
+
+def _sms_dev_mode() -> bool:
+    return os.environ.get("SMS_DEV_MODE", "1") != "0"
+
+
+def _issue_sms_code(db: Session, phone: str, purpose: str) -> str:
+    now = utcnow()
+    recent = db.scalar(select(VerificationCode).where(
+        VerificationCode.phone == phone,
+        VerificationCode.purpose == purpose,
+        VerificationCode.created_at > now - timedelta(seconds=SMS_COOLDOWN_SECONDS)))
+    if recent is not None:
+        raise ApiError(429, f"验证码发送过于频繁，请 {SMS_COOLDOWN_SECONDS} 秒后再试")
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    db.add(VerificationCode(phone=phone, purpose=purpose,
+                            code_hash=_code_hash(phone, code),
+                            expires_at=now + timedelta(seconds=SMS_TTL_SECONDS)))
+    db.flush()
+    return code
+
+
+def _consume_sms_code(db: Session, phone: str, code: str, purpose: str) -> None:
+    now = utcnow()
+    row = db.scalar(select(VerificationCode)
+                    .where(VerificationCode.phone == phone,
+                           VerificationCode.purpose == purpose)
+                    .order_by(VerificationCode.created_at.desc()))
+    if row is None:
+        raise ApiError(400, "请先获取验证码")
+    if row.expires_at < now:
+        raise ApiError(400, "验证码已过期，请重新获取")
+    if row.attempts >= SMS_MAX_ATTEMPTS:
+        raise ApiError(429, "验证码错误次数过多，请重新获取")
+    if row.code_hash != _code_hash(phone, code.strip()):
+        row.attempts += 1
+        db.flush()
+        raise ApiError(401, "验证码不正确")
+    db.delete(row)
+    db.flush()
+
+
+def _token_for(runtime: Runtime, user: User) -> schemas.TokenOut:
+    token = create_token(runtime.settings.secret, {"sub": user.user_id, "role": user.role})
+    return schemas.TokenOut(token=token, expires_in=12 * 3600,
+                            user=schemas.UserOut(user_id=user.user_id,
+                                                 username=user.username, role=user.role))
+
+
+@router.post("/auth/sms/send", response_model=schemas.SmsSendOut, tags=["auth"])
+def send_sms_code(payload: schemas.SmsSendIn, db: Session = Depends(get_db)) -> schemas.SmsSendOut:
+    code = _issue_sms_code(db, payload.phone, payload.purpose)
+    dev = _sms_dev_mode()
+    # 真实环境这里调用短信服务商；演示模式把验证码直接返回给前端展示
+    return schemas.SmsSendOut(ttl=SMS_TTL_SECONDS, dev_code=code if dev else None,
+                              message="演示模式：验证码已生成" if dev else "验证码已发送")
+
+
+@router.post("/auth/register/phone", response_model=schemas.TokenOut, status_code=201,
+             tags=["auth"])
+def register_with_phone(payload: schemas.PhoneRegisterIn, db: Session = Depends(get_db),
+                        runtime: Runtime = Depends(get_runtime)) -> schemas.TokenOut:
+    _consume_sms_code(db, payload.phone, payload.code, "register")
+    if db.scalar(select(User).where(User.username == payload.username)) is not None:
+        raise ApiError(409, "用户名已被占用，换一个试试")
+    if db.scalar(select(User).where(User.phone == payload.phone)) is not None:
+        raise ApiError(409, "该手机号已注册，可直接用验证码登录")
+    user = User(user_id=f"U{uuid4().hex[:12]}", username=payload.username,
+                password_hash=hash_password(payload.password), role="user",
+                phone=payload.phone, phone_verified=True, provider="phone",
+                created_at=utcnow())
+    db.add(user)
+    db.flush()
+    return _token_for(runtime, user)
+
+
+@router.post("/auth/login/phone", response_model=schemas.TokenOut, tags=["auth"])
+def login_with_phone(payload: schemas.PhoneLoginIn, db: Session = Depends(get_db),
+                     runtime: Runtime = Depends(get_runtime)) -> schemas.TokenOut:
+    _consume_sms_code(db, payload.phone, payload.code, "login")
+    user = db.scalar(select(User).where(User.phone == payload.phone))
+    if user is None:
+        raise ApiError(404, "该手机号还没有注册，请先注册")
+    return _token_for(runtime, user)
+
+
+@router.post("/auth/oauth/{provider}", response_model=schemas.OAuthOut, tags=["auth"])
+def oauth_login(provider: str, runtime: Runtime = Depends(get_runtime)) -> schemas.OAuthOut:
+    if provider not in {"wechat", "qq"}:
+        raise ApiError(422, "只支持 wechat / qq")
+    nickname = "微信用户" if provider == "wechat" else "QQ 用户"
+    bind_token = create_token(runtime.settings.secret,
+                              {"sub": f"oauth:{provider}:{uuid4().hex[:10]}",
+                               "provider": provider, "purpose": "bind"}, ttl=600)
+    return schemas.OAuthOut(provider=provider, bind_token=bind_token, nickname=nickname)
+
+
+@router.post("/auth/bind-phone", response_model=schemas.TokenOut, status_code=201, tags=["auth"])
+def bind_phone(payload: schemas.BindPhoneIn, db: Session = Depends(get_db),
+               runtime: Runtime = Depends(get_runtime)) -> schemas.TokenOut:
+    try:
+        claims = decode_token(runtime.settings.secret, payload.bind_token)
+    except Exception:  # noqa: BLE001
+        raise ApiError(401, "绑定会话已失效，请重新授权")
+    if claims.get("purpose") != "bind":
+        raise ApiError(401, "绑定会话无效")
+    _consume_sms_code(db, payload.phone, payload.code, "bind")
+    provider = str(claims.get("provider") or "wechat")
+    user = db.scalar(select(User).where(User.phone == payload.phone))
+    if user is None:
+        username = payload.username or f"{provider}_{uuid4().hex[:6]}"
+        while db.scalar(select(User).where(User.username == username)) is not None:
+            username = f"{provider}_{uuid4().hex[:6]}"
+        user = User(user_id=f"U{uuid4().hex[:12]}", username=username,
+                    password_hash=hash_password(uuid4().hex), role="user",
+                    phone=payload.phone, phone_verified=True, provider=provider,
+                    created_at=utcnow())
+        db.add(user)
+        db.flush()
+    else:
+        user.phone_verified = True
+        user.provider = provider
+        db.flush()
+    return _token_for(runtime, user)
