@@ -1028,3 +1028,19 @@ def product_gallery_image(item_id: str, index: int, db: Session = Depends(get_db
                                  float(item.price), max(0, min(index, 2)))
     return Response(content=svg, media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.get("/authors/{author_id}/reviews", response_model=list[schemas.MyReviewOut],
+            tags=["ugc"])
+def author_reviews(author_id: str, db: Session = Depends(get_db)) -> list[schemas.MyReviewOut]:
+    rows = db.scalars(select(Review).where(Review.user_id == author_id)
+                      .order_by(Review.created_at.desc()).limit(50)).all()
+    titles = {
+        item.item_id: item.title
+        for item in db.scalars(select(Item).where(
+            Item.item_id.in_({row.item_id for row in rows})))
+    } if rows else {}
+    return [schemas.MyReviewOut(review_id=row.review_id, item_id=row.item_id,
+                                item_title=titles.get(row.item_id, row.item_id),
+                                rating=row.rating, content=row.content,
+                                created_at=row.created_at) for row in rows]

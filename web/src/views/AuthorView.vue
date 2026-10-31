@@ -8,6 +8,9 @@ const route = useRoute()
 const loading = ref(true)
 const error = ref('')
 const author = ref(null)
+const tab = ref('posts')
+const reviews = ref([])
+const reviewsLoaded = ref(false)
 
 const initial = computed(() => (author.value?.username || 'U').slice(0, 1))
 
@@ -23,8 +26,24 @@ async function load() {
   }
 }
 
+async function openReviews() {
+  tab.value = 'reviews'
+  if (reviewsLoaded.value) return
+  try {
+    reviews.value = await api.authorReviews(route.params.authorId)
+  } catch (error) {
+    reviews.value = []
+  }
+  reviewsLoaded.value = true
+}
+
 onMounted(load)
-watch(() => route.params.authorId, load)
+watch(() => route.params.authorId, () => {
+  tab.value = 'posts'
+  reviewsLoaded.value = false
+  reviews.value = []
+  load()
+})
 </script>
 
 <template>
@@ -48,11 +67,30 @@ watch(() => route.params.authorId, load)
       </div>
 
       <div class="tabs">
-        <button class="active" type="button">TA 的安利与视频</button>
-        <button type="button" disabled>TA 的买家评价</button>
+        <button :class="tab === 'posts' ? 'active' : ''" type="button"
+                @click="tab = 'posts'">TA 的安利与视频</button>
+        <button :class="tab === 'reviews' ? 'active' : ''" type="button"
+                @click="openReviews">TA 的买家评价</button>
       </div>
 
-      <div v-if="author.posts.length" class="masonry">
+      <div v-if="tab === 'reviews'" class="section-card">
+        <div v-if="reviews.length" class="row-list">
+          <div v-for="row in reviews" :key="row.review_id" class="row-item review-item">
+            <span class="avatar">{{ (author.username || 'U').slice(0, 1) }}</span>
+            <div class="grow">
+              <div style="font-weight: 700">{{ row.item_title }}</div>
+              <div class="stars">
+                <span v-for="n in 5" :key="n" :class="['star', row.rating >= n ? 'full' : 'empty']">★</span>
+              </div>
+              <div>{{ row.content || '（未填写文字）' }}</div>
+              <div class="meta">{{ new Date(row.created_at).toLocaleDateString('zh-CN') }}</div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty">TA 还没有发表过买家评价</div>
+      </div>
+
+      <div v-else-if="author.posts.length" class="masonry">
         <PostCard v-for="post in author.posts" :key="post.post_id" :post="post" />
       </div>
       <div v-else class="empty">TA 还没有发布安利</div>

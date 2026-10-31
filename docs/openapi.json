@@ -2304,6 +2304,52 @@
         ]
       }
     },
+    "/api/v1/authors/{author_id}/reviews": {
+      "get": {
+        "operationId": "author_reviews_api_v1_authors__author_id__reviews_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "author_id",
+            "required": true,
+            "schema": {
+              "title": "Author Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MyReviewOut"
+                  },
+                  "title": "Response Author Reviews Api V1 Authors  Author Id  Reviews Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Author Reviews",
+        "tags": [
+          "ugc"
+        ]
+      }
+    },
     "/api/v1/cart": {
       "get": {
         "operationId": "get_cart_api_v1_cart_get",
