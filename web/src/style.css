@@ -547,3 +547,11 @@ button, input, select { font: inherit; color: inherit; }
 /* --------------------------------------------------------- region selects */
 .region-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .region-grid .select { width: 100%; }
+
+/* ------------------------------------------------------------ login tabs */
+.login-tabs { display: flex; gap: 6px; background: #f4ede5; padding: 5px; border-radius: 999px; margin-bottom: 18px; }
+.login-tabs button {
+  flex: 1; padding: 8px 0; border: 0; border-radius: 999px; background: transparent;
+  color: var(--muted); font-weight: 700; cursor: pointer;
+}
+.login-tabs button.active { background: #fff; color: var(--accent); box-shadow: 0 2px 8px rgba(65, 45, 30, 0.08); }

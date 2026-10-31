@@ -55,6 +55,8 @@ export function mediaUrl(path) {
 export const api = {
   login: (username, password) =>
     request('/auth/login', { method: 'POST', body: { username, password }, auth: false }),
+  register: (username, password) =>
+    request('/auth/register', { method: 'POST', body: { username, password }, auth: false }),
   me: () => request('/auth/me'),
   profile: () => request('/me/profile'),
   insights: () => request('/me/insights'),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from uuid import uuid4
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from .. import __version__
 from ..core.errors import ApiError, request_id_of
-from ..core.security import create_token, verify_password
+from ..core.security import create_token, hash_password, verify_password
 from ..db.models import Dwell, Event, Item, Post, Search, User, utcnow
 from ..media import covers
 from ..runtime import Runtime
@@ -104,6 +105,22 @@ def login(payload: schemas.LoginIn, db: Session = Depends(get_db),
     user = db.scalar(select(User).where(User.username == payload.username))
     if user is None or not verify_password(payload.password, user.password_hash):
         raise ApiError(401, "用户名或密码错误")
+    token = create_token(runtime.settings.secret, {"sub": user.user_id, "role": user.role})
+    return schemas.TokenOut(token=token, expires_in=12 * 3600,
+                            user=schemas.UserOut(user_id=user.user_id,
+                                                 username=user.username, role=user.role))
+
+
+@router.post("/auth/register", response_model=schemas.TokenOut, status_code=201, tags=["auth"])
+def register(payload: schemas.RegisterIn, db: Session = Depends(get_db),
+             runtime: Runtime = Depends(get_runtime)) -> schemas.TokenOut:
+    if db.scalar(select(User).where(User.username == payload.username)) is not None:
+        raise ApiError(409, "用户名已被占用，换一个试试")
+    user = User(user_id=f"U{uuid4().hex[:12]}", username=payload.username,
+                password_hash=hash_password(payload.password), role="user",
+                created_at=utcnow())
+    db.add(user)
+    db.flush()
     token = create_token(runtime.settings.secret, {"sub": user.user_id, "role": user.role})
     return schemas.TokenOut(token=token, expires_in=12 * 3600,
                             user=schemas.UserOut(user_id=user.user_id,

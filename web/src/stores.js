@@ -12,15 +12,32 @@ export const useSessionStore = defineStore('session', {
     loggedIn: (state) => Boolean(state.token)
   },
   actions: {
+    applyAuth(result) {
+      this.token = result.token
+      this.user = result.user
+      localStorage.setItem('gt_token', result.token)
+      localStorage.setItem('gt_user', JSON.stringify(result.user))
+    },
     async login(username, password) {
       this.loading = true
       this.error = ''
       try {
         const result = await api.login(username, password)
-        this.token = result.token
-        this.user = result.user
-        localStorage.setItem('gt_token', result.token)
-        localStorage.setItem('gt_user', JSON.stringify(result.user))
+        this.applyAuth(result)
+      } catch (error) {
+        this.error = error.message
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+    async register(username, password) {
+      this.loading = true
+      this.error = ''
+      try {
+        const result = await api.register(username, password)
+        this.applyAuth(result)
+        return result
       } catch (error) {
         this.error = error.message
         throw error

@@ -18,6 +18,11 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1, max_length=200)
 
 
+class RegisterIn(BaseModel):
+    username: str = Field(min_length=3, max_length=20, pattern=r"^[A-Za-z0-9_]+$")
+    password: str = Field(min_length=6, max_length=64)
+
+
 class UserOut(BaseModel):
     user_id: str
     username: str
