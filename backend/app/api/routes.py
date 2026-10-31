@@ -154,11 +154,16 @@ def similar(item_id: str, size: int = Query(8, ge=1, le=50),
 
 @router.get("/posts", response_model=schemas.PostPageOut, tags=["ugc"])
 def list_posts(product_id: str | None = None,
+               author_id: str | None = None,
                page: int = Query(1, ge=1),
                size: int = Query(12, ge=1, le=50),
                db: Session = Depends(get_db),
                runtime: Runtime = Depends(get_runtime)) -> schemas.PostPageOut:
-    filters = [Post.product_id == product_id] if product_id else []
+    filters = []
+    if product_id:
+        filters.append(Post.product_id == product_id)
+    if author_id:
+        filters.append(Post.author_id == author_id)
     total = db.scalar(select(func.count()).select_from(Post).where(*filters)) or 0
     rows = db.scalars(select(Post).where(*filters).order_by(Post.created_at.desc(),
                                                             Post.post_id)
@@ -181,6 +186,29 @@ def list_posts(product_id: str | None = None,
 def get_post(post_id: str, db: Session = Depends(get_db),
              runtime: Runtime = Depends(get_runtime)) -> schemas.PostOut:
     return _load_post(db, post_id, runtime)
+
+
+@router.get("/authors/{author_id}", response_model=schemas.AuthorOut, tags=["ugc"])
+def get_author(author_id: str, db: Session = Depends(get_db),
+               runtime: Runtime = Depends(get_runtime)) -> schemas.AuthorOut:
+    author = db.get(User, author_id)
+    if author is None:
+        raise ApiError(404, f"作者 {author_id} 不存在")
+    rows = db.scalars(select(Post).where(Post.author_id == author_id)
+                      .order_by(Post.created_at.desc()).limit(30)).all()
+    items = {
+        item.item_id: item
+        for item in db.scalars(select(Item).where(
+            Item.item_id.in_({row.product_id for row in rows})))
+    } if rows else {}
+    posts = [_post_out(row, author.username, items.get(row.product_id), runtime)
+             for row in rows]
+    categories = sorted({items[row.product_id].category
+                         for row in rows if row.product_id in items})
+    return schemas.AuthorOut(user_id=author.user_id, username=author.username,
+                             role=author.role, post_count=len(rows),
+                             total_likes=sum(row.likes for row in rows),
+                             categories=categories, posts=posts)
 
 
 @router.get("/feed", response_model=schemas.FeedOut, tags=["ugc"])

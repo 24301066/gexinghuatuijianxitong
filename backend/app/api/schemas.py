@@ -126,6 +126,16 @@ class PostPageOut(BaseModel):
     size: int
 
 
+class AuthorOut(BaseModel):
+    user_id: str
+    username: str
+    role: str
+    post_count: int
+    total_likes: int
+    categories: list[str]
+    posts: list[PostOut]
+
+
 class FeedOut(BaseModel):
     hero: PostOut | None = None
     posts: list[PostOut]

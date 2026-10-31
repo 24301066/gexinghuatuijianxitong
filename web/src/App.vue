@@ -1,13 +1,34 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSessionStore, useToastStore } from './stores'
+import { useShopStore } from './stores/shop'
 
 const session = useSessionStore()
 const toast = useToastStore()
+const shop = useShopStore()
+shop.startAutoSave()
+
 const router = useRouter()
 const route = useRoute()
-const keyword = ref(route.query.q || '')
+const keyword = ref('')
+
+watch(
+  () => route.name,
+  (name) => {
+    // 搜索完跳走以后搜索框恢复初始状态
+    if (name !== 'search') keyword.value = ''
+  },
+  { immediate: true }
+)
+
+watch(
+  () => route.query.q,
+  (value) => {
+    if (route.name === 'search') keyword.value = String(value || '')
+  },
+  { immediate: true }
+)
 
 function submitSearch() {
   const query = keyword.value.trim()
@@ -32,23 +53,29 @@ function logout() {
       <nav class="nav">
         <RouterLink to="/">首页</RouterLink>
         <RouterLink to="/discover">发现</RouterLink>
-        <RouterLink to="/search">搜索</RouterLink>
+        <RouterLink to="/messages" class="nav-msg">
+          消息
+          <span v-if="shop.unreadCount" class="dot-badge">{{ shop.unreadCount }}</span>
+        </RouterLink>
         <RouterLink to="/me">我的</RouterLink>
-        <RouterLink to="/about">关于</RouterLink>
       </nav>
 
       <div class="search-box">
         <span aria-hidden="true">🔍</span>
         <input v-model="keyword" placeholder="搜商品、安利、类目…" @keyup.enter="submitSearch" />
-        <span class="hint">回车</span>
+        <button class="link" type="button" @click="submitSearch">搜索</button>
       </div>
 
+      <RouterLink to="/cart" class="cart-pill" :title="`购物车 ${shop.cartCount} 件`">
+        🛒<span v-if="shop.cartCount" class="count">{{ shop.cartCount }}</span>
+      </RouterLink>
+
       <template v-if="session.loggedIn">
-        <span class="who">
+        <RouterLink class="who" to="/me">
           <span class="avatar">{{ (session.user?.username || 'U').slice(0, 1).toUpperCase() }}</span>
           {{ session.user?.username }}
-          <button class="link" type="button" @click="logout">退出</button>
-        </span>
+        </RouterLink>
+        <button class="link" type="button" @click="logout">退出</button>
       </template>
       <RouterLink v-else class="btn small" to="/login">登录</RouterLink>
     </header>
@@ -60,7 +87,7 @@ function logout() {
     <nav class="bottom-nav">
       <RouterLink to="/">首页</RouterLink>
       <RouterLink to="/discover">发现</RouterLink>
-      <RouterLink to="/search">搜索</RouterLink>
+      <RouterLink to="/messages">消息</RouterLink>
       <RouterLink to="/me">我的</RouterLink>
     </nav>
 

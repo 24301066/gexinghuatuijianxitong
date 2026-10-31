@@ -39,8 +39,8 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
   if (!response.ok) {
     throw new ApiError(
       payload.message || `请求失败（HTTP ${response.status}）`,
-      response.status,
       payload.code || 'error',
+      response.status,
       payload.request_id || response.headers.get('X-Request-ID') || ''
     )
   }
@@ -68,11 +68,13 @@ export const api = {
   similar: (itemId, size = 8) =>
     request(`/items/${encodeURIComponent(itemId)}/similar?size=${size}`),
   recommendations: (size = 10, page = 1) => request(`/recommendations?size=${size}&page=${page}`),
-  posts: ({ productId = '', page = 1, size = 12 } = {}) => {
+  posts: ({ productId = '', authorId = '', page = 1, size = 12 } = {}) => {
     const query = new URLSearchParams({ page, size })
     if (productId) query.set('product_id', productId)
+    if (authorId) query.set('author_id', authorId)
     return request(`/posts?${query.toString()}`, { auth: false })
   },
+  author: (authorId) => request(`/authors/${encodeURIComponent(authorId)}`, { auth: false }),
   post: (postId) => request(`/posts/${encodeURIComponent(postId)}`, { auth: false }),
   feed: (size = 8) => request(`/feed?size=${size}`),
   search: (q) => request(`/search?q=${encodeURIComponent(q)}`),

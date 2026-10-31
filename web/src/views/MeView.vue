@@ -2,31 +2,50 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, mediaUrl } from '../api'
-import { useSessionStore, useToastStore } from '../stores'
+import { useSessionStore } from '../stores'
+import { useShopStore } from '../stores/shop'
 import ProductCard from '../components/ProductCard.vue'
 
 const router = useRouter()
 const session = useSessionStore()
-const toast = useToastStore()
+const shop = useShopStore()
 
 const loading = ref(true)
 const error = ref('')
-const data = ref(null)
+const insights = ref(null)
+const tab = ref('dwell')
 
-const categories = computed(() => {
-  const entries = Object.entries(data.value?.categories || {})
-  const max = Math.max(1, ...entries.map(([, value]) => Number(value) || 0))
-  return entries
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, value]) => ({ name, value, percent: Math.round((value / max) * 100) }))
+const TABS = [
+  { key: 'dwell', label: '停留过的安利' },
+  { key: 'liked', label: '可能喜欢' },
+  { key: 'favorites', label: '我的收藏' },
+  { key: 'reviews', label: '我的评价' }
+]
+
+const ORDER_LINKS = [
+  { key: 'pending_payment', label: '待付款' },
+  { key: 'pending_shipment', label: '待发货' },
+  { key: 'pending_receipt', label: '待收货' },
+  { key: 'pending_review', label: '待评价' },
+  { key: 'aftersale', label: '退款/售后' }
+]
+
+const recentSearches = computed(() => {
+  const seen = new Set()
+  return (insights.value?.recent_searches || []).filter((row) => {
+    if (seen.has(row.keyword)) return false
+    seen.add(row.keyword)
+    return true
+  })
 })
+
+const orderCount = (status) => shop.orders.filter((row) => row.status === status).length
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    data.value = await api.insights()
+    insights.value = await api.insights()
   } catch (err) {
     error.value = err.message
   } finally {
@@ -43,79 +62,138 @@ onMounted(load)
 
 <template>
   <section>
-    <div class="page-head">
-      <h1>我的</h1>
-      <p>看看你的口味、最近搜过什么、在哪些安利上停留最久。</p>
+    <div v-if="error" class="notice">{{ error }}</div>
+
+    <div class="section-card" style="display: flex; align-items: center; gap: 16px">
+      <RouterLink :to="{ name: 'profile' }">
+        <span class="avatar avatar-lg">{{ (session.user?.username || 'U').slice(0, 1).toUpperCase() }}</span>
+      </RouterLink>
+      <div style="flex: 1">
+        <RouterLink :to="{ name: 'profile' }" style="font-weight: 800; font-size: 19px">
+          {{ shop.profile.nickname }}
+        </RouterLink>
+        <div class="meta">
+          <span>Lv.{{ shop.profile.level }}</span>
+          <span class="dot" />
+          <span>活跃度 {{ shop.profile.active }}</span>
+          <span class="dot" />
+          <span>{{ session.user?.username }}</span>
+        </div>
+      </div>
+      <RouterLink class="btn ghost small" :to="{ name: 'profile' }">个人信息 ›</RouterLink>
     </div>
 
-    <div v-if="error" class="notice">{{ error }}</div>
-    <div v-if="loading" class="empty">加载中…</div>
-
-    <template v-else-if="data">
-      <div class="card" style="padding: 22px; display: flex; gap: 16px; align-items: center">
-        <span class="avatar" style="width: 54px; height: 54px; font-size: 20px">
-          {{ (session.user?.username || 'U').slice(0, 1).toUpperCase() }}
-        </span>
-        <div>
-          <div style="font-weight: 800; font-size: 18px">{{ session.user?.username }}</div>
-          <div class="meta">
-            <span>活跃度 {{ Number(data.activity_level || 0).toFixed(2) }}</span>
-            <span class="dot" />
-            <span>客单价偏好 ¥{{ Number(data.avg_price || 0).toFixed(0) }}</span>
-          </div>
-        </div>
-        <button class="btn ghost small" type="button" style="margin-left: auto" @click="load">刷新</button>
+    <div class="section-card">
+      <RouterLink class="stat-grid" :to="{ name: 'wallet' }" style="text-decoration: none">
+        <div class="stat"><b>{{ shop.wallet.balance }}</b><span>余额</span></div>
+        <div class="stat"><b>{{ shop.wallet.coupons }}</b><span>优惠券</span></div>
+        <div class="stat"><b>{{ shop.wallet.points }}</b><span>积分</span></div>
+        <div class="stat"><b>{{ shop.wallet.red_packets }}</b><span>红包</span></div>
+      </RouterLink>
+      <div class="meta" style="margin-top: 8px">
+        <RouterLink class="link" :to="{ name: 'wallet' }">进入钱包管理 ›</RouterLink>
       </div>
+    </div>
 
-      <section class="section">
-        <div class="section-head"><h2>口味偏好</h2><span>按类目权重</span></div>
-        <div v-if="categories.length" class="bars">
-          <div v-for="row in categories" :key="row.name" class="bar-row">
-            <span>{{ row.name }}</span>
-            <span class="bar"><i :style="{ width: `${row.percent}%` }" /></span>
-            <span>{{ row.percent }}%</span>
+    <div class="section-card">
+      <div class="section-head" style="margin-bottom: 10px">
+        <h2>我的订单</h2>
+        <RouterLink class="link" :to="{ name: 'orders' }">全部订单 ›</RouterLink>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px">
+        <RouterLink v-for="link in ORDER_LINKS" :key="link.key"
+                    :to="{ name: 'orders', query: { status: link.key } }"
+                    style="text-align: center; padding: 8px 2px; border-radius: 12px; background: #faf5ef">
+          <div style="font-size: 18px">
+            {{ link.key === 'aftersale' ? '↩' : link.key === 'pending_review' ? '✎' : link.key === 'pending_receipt' ? '📦' : link.key === 'pending_shipment' ? '🚚' : '💳' }}
           </div>
-        </div>
-        <div v-else class="empty">还没有足够的行为数据</div>
-      </section>
+          <div style="font-size: 12px; color: var(--muted)">{{ link.label }}</div>
+          <div v-if="orderCount(link.key)" class="dot-badge">{{ orderCount(link.key) }}</div>
+        </RouterLink>
+      </div>
+    </div>
 
-      <section class="section">
-        <div class="section-head"><h2>最近搜索</h2><span>用于关键词推荐</span></div>
-        <div v-if="data.recent_searches.length" class="chip-row">
-          <button v-for="row in data.recent_searches" :key="row.keyword + row.created_at"
-                  class="chip" type="button" @click="goSearch(row.keyword)">
-            🔍 {{ row.keyword }}
-          </button>
-        </div>
-        <div v-else class="empty">还没有搜索记录，去搜点什么吧</div>
-      </section>
+    <div class="section-card">
+      <div class="menu-list">
+        <RouterLink class="menu-row" :to="{ name: 'cart' }">
+          <span>🛒 购物车</span>
+          <span class="arrow">{{ shop.cartCount }} 件 ›</span>
+        </RouterLink>
+        <RouterLink class="menu-row" :to="{ name: 'address' }">
+          <span>📍 地址</span><span class="arrow">{{ shop.addresses.length }} 个 ›</span>
+        </RouterLink>
+        <RouterLink class="menu-row" :to="{ name: 'chat', params: { id: 'service' } }">
+          <span>💬 官方客服</span><span class="arrow">›</span>
+        </RouterLink>
+        <RouterLink class="menu-row" :to="{ name: 'settings' }">
+          <span>⚙ 设置</span><span class="arrow">›</span>
+        </RouterLink>
+        <RouterLink class="menu-row" :to="{ name: 'about' }">
+          <span>ℹ 关于版本</span><span class="arrow">›</span>
+        </RouterLink>
+      </div>
+    </div>
 
-      <section class="section">
-        <div class="section-head"><h2>停留过的安利</h2><span>停留越久，越影响推荐</span></div>
-        <div v-if="data.recent_dwells.length" class="grid">
-          <RouterLink v-for="row in data.recent_dwells" :key="row.post_id"
-                      class="card" :to="{ name: 'post', params: { postId: row.post_id } }">
-            <div class="cover">
-              <img :src="mediaUrl(row.cover_url)" :alt="row.title" loading="lazy" />
-              <span class="badge">{{ Math.round(row.seconds) }} 秒</span>
-            </div>
-            <div class="card-body">
-              <h3 class="card-title">{{ row.title }}</h3>
-              <div class="meta">
-                <span>{{ new Date(row.created_at).toLocaleDateString('zh-CN') }}</span>
-              </div>
+    <div class="section-card">
+      <div class="section-head" style="margin-bottom: 10px"><h2>最近搜索</h2></div>
+      <div v-if="recentSearches.length" class="chip-row">
+        <button v-for="row in recentSearches" :key="row.keyword" class="chip" type="button"
+                @click="goSearch(row.keyword)">
+          {{ row.keyword }}
+        </button>
+      </div>
+      <div v-else class="meta">还没有搜索记录</div>
+    </div>
+
+    <div class="tabs">
+      <button v-for="item in TABS" :key="item.key" type="button"
+              :class="tab === item.key ? 'active' : ''" @click="tab = item.key">
+        {{ item.label }}
+      </button>
+    </div>
+
+    <div class="section-card" style="min-height: 140px">
+      <template v-if="tab === 'dwell'">
+        <div v-if="loading" class="empty">加载中…</div>
+        <div v-else-if="insights?.recent_dwells?.length" class="row-list">
+          <RouterLink v-for="row in insights.recent_dwells" :key="row.post_id"
+                      class="row-item" :to="{ name: 'post', params: { postId: row.post_id } }">
+            <img :src="mediaUrl(row.cover_url)" :alt="row.title" class="cart-thumb" />
+            <div class="grow">
+              <div style="font-weight: 700">{{ row.title }}</div>
+              <div class="meta">停留 {{ Math.round(row.seconds) }} 秒</div>
             </div>
           </RouterLink>
         </div>
-        <div v-else class="empty">还没有停留记录</div>
-      </section>
+        <div v-else class="empty">还没有停留记录，去发现页逛逛</div>
+      </template>
 
-      <section class="section">
-        <div class="section-head"><h2>可能喜欢</h2><span>综合你的行为与停留</span></div>
+      <template v-else-if="tab === 'liked'">
         <div class="grid">
-          <ProductCard v-for="item in data.liked_items" :key="item.item_id" :item="item" />
+          <ProductCard v-for="item in insights?.liked_items || []" :key="item.item_id" :item="item" />
         </div>
-      </section>
-    </template>
+        <div v-if="!(insights?.liked_items || []).length" class="empty">暂无推荐</div>
+      </template>
+
+      <template v-else-if="tab === 'favorites'">
+        <div v-if="shop.favorites.length" class="grid">
+          <ProductCard v-for="item in shop.favorites" :key="item.item_id" :item="item" />
+        </div>
+        <div v-else class="empty">还没有收藏，点商品上的 ♡ 试试</div>
+      </template>
+
+      <template v-else>
+        <div v-if="shop.reviews.length" class="row-list">
+          <div v-for="(row, index) in shop.reviews" :key="index" class="row-item">
+            <span class="avatar">我</span>
+            <div class="grow">
+              <div>{{ row.text }}</div>
+              <div class="meta">订单 {{ row.order_id }}</div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty">还没有评价，收货后可以来评价</div>
+      </template>
+    </div>
   </section>
 </template>

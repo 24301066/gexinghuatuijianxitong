@@ -61,6 +61,55 @@
         "title": "AdminMetricsOut",
         "type": "object"
       },
+      "AuthorOut": {
+        "properties": {
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "post_count": {
+            "title": "Post Count",
+            "type": "integer"
+          },
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/PostOut"
+            },
+            "title": "Posts",
+            "type": "array"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "total_likes": {
+            "title": "Total Likes",
+            "type": "integer"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "username",
+          "role",
+          "post_count",
+          "total_likes",
+          "categories",
+          "posts"
+        ],
+        "title": "AuthorOut",
+        "type": "object"
+      },
       "DwellHitOut": {
         "properties": {
           "cover_url": {
@@ -1035,6 +1084,48 @@
         ]
       }
     },
+    "/api/v1/authors/{author_id}": {
+      "get": {
+        "operationId": "get_author_api_v1_authors__author_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "author_id",
+            "required": true,
+            "schema": {
+              "title": "Author Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Author",
+        "tags": [
+          "ugc"
+        ]
+      }
+    },
     "/api/v1/events": {
       "post": {
         "operationId": "create_event_api_v1_events_post",
@@ -1459,6 +1550,22 @@
                 }
               ],
               "title": "Product Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "author_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Author Id"
             }
           },
           {

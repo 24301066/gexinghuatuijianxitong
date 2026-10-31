@@ -3,12 +3,14 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, mediaUrl } from '../api'
 import { useToastStore } from '../stores'
+import { useShopStore } from '../stores/shop'
 import ProductCard from '../components/ProductCard.vue'
 import PostCard from '../components/PostCard.vue'
 
 const route = useRoute()
 const router = useRouter()
 const toast = useToastStore()
+const shop = useShopStore()
 
 const item = ref(null)
 const similar = ref([])
@@ -45,12 +47,23 @@ async function act(type) {
   busy.value = true
   try {
     await api.postEvent(item.value.item_id, type)
+    if (type === 'cart') {
+      shop.addToCart(item.value)
+    }
     toast.push(type === 'purchase' ? '已模拟购买，推荐会更新' : '已加入购物车', 'info')
   } catch (err) {
     toast.push(err.message, 'error')
   } finally {
     busy.value = false
   }
+}
+
+const favorite = computed(() => (item.value ? shop.isFavorite(item.value.item_id) : false))
+
+function toggleFav() {
+  if (!item.value) return
+  const added = shop.toggleFavorite(item.value)
+  toast.push(added ? '已收藏' : '已取消收藏')
 }
 
 onMounted(load)
@@ -82,6 +95,9 @@ onMounted(load)
           <div style="display: flex; gap: 10px; margin-top: 18px">
             <button class="btn" type="button" :disabled="busy" @click="act('cart')">加入购物车</button>
             <button class="btn ghost" type="button" :disabled="busy" @click="act('purchase')">模拟购买</button>
+            <button class="btn ghost" type="button" @click="toggleFav">
+              {{ favorite ? '♥ 已收藏' : '♡ 收藏' }}
+            </button>
           </div>
         </div>
       </div>
