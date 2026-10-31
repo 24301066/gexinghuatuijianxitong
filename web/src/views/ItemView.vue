@@ -18,11 +18,23 @@ const posts = ref([])
 const loading = ref(true)
 const error = ref('')
 const busy = ref(false)
+const galleryIndex = ref(0)
 
 const item = computed(() => detail.value?.item || null)
 const merchant = computed(() => detail.value?.merchant || null)
 const reviews = computed(() => detail.value?.reviews || [])
 const cover = computed(() => (item.value ? mediaUrl(item.value.cover_url) : ''))
+const images = computed(() => {
+  const list = item.value?.images || []
+  return list.length ? list : (item.value ? [item.value.cover_url] : [])
+})
+const currentImage = computed(() => mediaUrl(images.value[galleryIndex.value] || ''))
+
+function step(delta) {
+  const total = images.value.length
+  if (!total) return
+  galleryIndex.value = (galleryIndex.value + delta + total) % total
+}
 const stars = computed(() => {
   const value = Math.round((detail.value?.rating || 0) * 2) / 2
   return [1, 2, 3, 4, 5].map((n) => (value >= n ? 'full' : value >= n - 0.5 ? 'half' : 'empty'))
@@ -82,8 +94,14 @@ onMounted(load)
 
     <template v-else-if="detail">
       <div class="detail">
-        <div class="cover">
-          <img :src="cover" :alt="item.title" />
+        <div class="gallery">
+          <img :src="currentImage" :alt="item.title" />
+          <button class="gallery-nav prev" type="button" @click="step(-1)">‹</button>
+          <button class="gallery-nav next" type="button" @click="step(1)">›</button>
+          <div class="gallery-dots">
+            <button v-for="(_, index) in images" :key="index" type="button"
+                    :class="index === galleryIndex ? 'active' : ''" @click="galleryIndex = index" />
+          </div>
         </div>
         <div>
           <h1>{{ item.title }}</h1>

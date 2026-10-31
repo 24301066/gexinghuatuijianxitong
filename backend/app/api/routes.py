@@ -40,7 +40,9 @@ def _item_out(item: Item) -> schemas.ItemOut:
     return schemas.ItemOut(item_id=item.item_id, title=item.title, category=item.category,
                            price=float(item.price), tags=item.tag_list(),
                            description=item.description or "",
-                           cover_url=_cover_url("product", item.item_id))
+                           cover_url=_cover_url("product", item.item_id),
+                           images=[f"/api/v1/media/product/{item.item_id}/image/{index}"
+                                   for index in range(3)])
 
 
 def _asset_dir(runtime: Runtime, kind: str):
@@ -1015,3 +1017,14 @@ def my_reviews(db: Session = Depends(get_db),
                                 item_title=titles.get(row.item_id, row.item_id),
                                 rating=row.rating, content=row.content,
                                 created_at=row.created_at) for row in rows]
+
+
+@router.get("/media/product/{item_id}/image/{index}", tags=["catalog"])
+def product_gallery_image(item_id: str, index: int, db: Session = Depends(get_db)):
+    item = db.get(Item, item_id)
+    if item is None:
+        raise ApiError(404, f"商品 {item_id} 不存在")
+    svg = covers.product_gallery(item.item_id, item.title, item.category,
+                                 float(item.price), max(0, min(index, 2)))
+    return Response(content=svg, media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=3600"})

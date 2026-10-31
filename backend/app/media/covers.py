@@ -156,3 +156,14 @@ def post_gallery(post_id: str, title: str, media_type: str, seconds: int, theme:
             f'font-family="Segoe UI, sans-serif" font-size="18" fill="#6b5c4e">' \
             f'{index + 1}/3</text>'
     return svg.replace("</svg>", badge + "</svg>")
+
+
+def product_gallery(item_id: str, title: str, category: str, price: float | None,
+                    index: int, size: int = 480) -> str:
+    """商品多图：同一商品多角度示意（不同种子 + 角标）。"""
+    variant = f"{item_id}-g{index}"
+    svg = product_cover(variant, title, category, price, size)
+    badge = f'<text x="{size - 26}" y="{size - 24}" text-anchor="end" ' \
+            f'font-family="Segoe UI, sans-serif" font-size="18" fill="#6b5c4e">' \
+            f'{index + 1}/3</text>'
+    return svg.replace("</svg>", badge + "</svg>")
