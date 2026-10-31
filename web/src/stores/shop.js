@@ -7,7 +7,16 @@ function blankState() {
   return {
     cart: [],
     favorites: [],
-    addresses: [],
+    addresses: [
+      {
+        id: 'ADDR-DEMO',
+        name: '林小满',
+        phone: '13800138000',
+        region: '浙江省 杭州市 西湖区',
+        detail: '文三路 90 号 3 幢 502',
+        is_default: true
+      }
+    ],
     orders: [],
     wallet: { coupons: 3, points: 1280, red_packets: 2, balance: 0 },
     profile: {

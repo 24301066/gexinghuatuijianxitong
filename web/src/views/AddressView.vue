@@ -1,14 +1,35 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useShopStore } from '../stores/shop'
 import { useToastStore } from '../stores'
+import { regions, citiesOf, districtsOf } from '../data/regions'
 
 const shop = useShopStore()
 const toast = useToastStore()
 
 const selected = ref([])
-const form = ref({ name: '', phone: '', region: '', detail: '', is_default: false })
 const editing = ref(false)
+const form = reactive({
+  name: '',
+  phone: '',
+  province: '',
+  city: '',
+  district: '',
+  detail: '',
+  is_default: false
+})
+
+const cityList = computed(() => citiesOf(form.province))
+const districtList = computed(() => districtsOf(form.province, form.city))
+
+function onProvince() {
+  form.city = ''
+  form.district = ''
+}
+
+function onCity() {
+  form.district = ''
+}
 
 function toggle(id) {
   selected.value = selected.value.includes(id)
@@ -27,12 +48,24 @@ function removeSelected() {
 }
 
 function save() {
-  if (!form.value.name || !form.value.phone || !form.value.region || !form.value.detail) {
-    toast.push('姓名、电话、地区、详细地址都要填', 'error')
+  if (!form.name || !form.phone || !form.province || !form.city || !form.district || !form.detail) {
+    toast.push('姓名、电话、省市区和详细地址都要填', 'error')
     return
   }
-  shop.addAddress({ ...form.value })
-  form.value = { name: '', phone: '', region: '', detail: '', is_default: false }
+  shop.addAddress({
+    name: form.name,
+    phone: form.phone,
+    region: `${form.province} ${form.city} ${form.district}`,
+    detail: form.detail,
+    is_default: form.is_default
+  })
+  form.name = ''
+  form.phone = ''
+  form.province = ''
+  form.city = ''
+  form.district = ''
+  form.detail = ''
+  form.is_default = false
   editing.value = false
   toast.push('地址已保存')
 }
@@ -74,9 +107,34 @@ function save() {
       <div class="form-grid">
         <div class="field"><label>收货人</label><input v-model="form.name" placeholder="姓名" /></div>
         <div class="field"><label>手机号</label><input v-model="form.phone" placeholder="11 位手机号" /></div>
-        <div class="field" style="grid-column: span 2"><label>所在地区</label><input v-model="form.region" placeholder="省 市 区" /></div>
-        <div class="field" style="grid-column: span 2"><label>详细地址</label><input v-model="form.detail" placeholder="街道、门牌号" /></div>
       </div>
+
+      <div class="field" style="margin-bottom: 12px">
+        <label>所在地区（省 / 市 / 区）</label>
+        <div class="region-grid">
+          <select v-model="form.province" class="select" @change="onProvince">
+            <option value="">选择省份</option>
+            <option v-for="row in regions" :key="row.name" :value="row.name">{{ row.name }}</option>
+          </select>
+          <select v-model="form.city" class="select" :disabled="!form.province" @change="onCity">
+            <option value="">选择城市</option>
+            <option v-for="row in cityList" :key="row.name" :value="row.name">{{ row.name }}</option>
+          </select>
+          <select v-model="form.district" class="select" :disabled="!form.city">
+            <option value="">选择区/县</option>
+            <option v-for="row in districtList" :key="row" :value="row">{{ row }}</option>
+          </select>
+        </div>
+        <div v-if="form.province" class="meta" style="margin-top: 6px">
+          已选：{{ form.province }} {{ form.city }} {{ form.district }}
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom: 12px">
+        <label>详细地址</label>
+        <input v-model="form.detail" placeholder="街道、门牌号、楼栋" />
+      </div>
+
       <label class="check-line" style="margin: 10px 0">
         <input v-model="form.is_default" type="checkbox" /> 设为默认地址
       </label>

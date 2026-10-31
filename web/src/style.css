@@ -543,3 +543,7 @@ button, input, select { font: inherit; color: inherit; }
 .cart-thumb { display: block; overflow: hidden; width: 54px; height: 54px; border-radius: 10px; flex: 0 0 auto; }
 .cart-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .row-item img { max-width: 100%; }
+
+/* --------------------------------------------------------- region selects */
+.region-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.region-grid .select { width: 100%; }
