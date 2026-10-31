@@ -123,3 +123,8 @@ api.itemDetail = (itemId) => request(`/items/${encodeURIComponent(itemId)}/detai
 api.reviews = (itemId) => request(`/items/${encodeURIComponent(itemId)}/reviews`, { auth: false })
 api.shop = (merchantId) => request(`/merchants/${encodeURIComponent(merchantId)}`, { auth: false })
 api.merchants = () => request('/merchants', { auth: false })
+
+
+api.reviewItem = (itemId, rating, content) =>
+  request(`/items/${encodeURIComponent(itemId)}/reviews`, { method: 'POST', body: { rating, content } })
+api.myReviews = () => request('/me/reviews')

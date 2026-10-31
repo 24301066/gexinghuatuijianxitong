@@ -13,6 +13,7 @@ const shop = useShopStore()
 const loading = ref(true)
 const error = ref('')
 const insights = ref(null)
+const myReviews = ref([])
 const tab = ref('dwell')
 
 const TABS = [
@@ -46,6 +47,7 @@ async function load() {
   error.value = ''
   try {
     insights.value = await api.insights()
+    myReviews.value = await api.myReviews().catch(() => [])
   } catch (err) {
     error.value = err.message
   } finally {
@@ -183,12 +185,16 @@ onMounted(load)
       </template>
 
       <template v-else>
-        <div v-if="shop.reviews.length" class="row-list">
-          <div v-for="(row, index) in shop.reviews" :key="index" class="row-item">
+        <div v-if="myReviews.length" class="row-list">
+          <div v-for="row in myReviews" :key="row.review_id" class="row-item">
             <span class="avatar">我</span>
             <div class="grow">
-              <div>{{ row.text }}</div>
-              <div class="meta">订单 {{ row.order_id }}</div>
+              <div>{{ row.item_title }}</div>
+              <div class="stars">
+                <span v-for="n in 5" :key="n" :class="['star', row.rating >= n ? 'full' : 'empty']">★</span>
+              </div>
+              <div>{{ row.content }}</div>
+              <div class="meta">{{ new Date(row.created_at).toLocaleDateString('zh-CN') }}</div>
             </div>
           </div>
         </div>

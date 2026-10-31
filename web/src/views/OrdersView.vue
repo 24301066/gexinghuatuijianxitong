@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { mediaUrl } from '../api'
 import { useShopStore } from '../stores/shop'
+import { api } from '../api'
 import { useToastStore } from '../stores'
 
 const shop = useShopStore()
@@ -52,9 +53,24 @@ const cancel = (order) => run(order, 'cancel', '订单已取消')
 const receive = (order) => run(order, 'receive', '已确认收货，记得评价')
 const aftersale = (order) => run(order, 'aftersale', '已申请售后，客服会联系你')
 
-async function review(order) {
-  shop.addReview({ order_id: order.id, text: '默认好评：包装完好，物流很快，和安利里说的一样。' })
-  await run(order, 'review', '已提交评价')
+const reviewing = ref(null)
+const draft = ref({ rating: 5, content: '' })
+
+function openReview(order) {
+  reviewing.value = order
+  draft.value = { rating: 5, content: '' }
+}
+
+async function submitReview() {
+  if (!reviewing.value) return
+  const first = reviewing.value.items[0]
+  try {
+    await api.reviewItem(first.item_id, draft.value.rating, draft.value.content)
+    await run(reviewing.value, 'review', '评价已提交')
+    reviewing.value = null
+  } catch (err) {
+    toast.push(err.message, 'error')
+  }
 }
 
 onMounted(() => { shop.loadOrders('all') })
@@ -102,9 +118,24 @@ onMounted(() => { shop.loadOrders('all') })
         <button v-if="order.status === 'pending_shipment'" class="btn ghost small" type="button"
                 @click="toast.push('已提醒商家尽快发货')">提醒发货</button>
         <button v-if="order.status === 'pending_receipt'" class="btn small" type="button" @click="receive(order)">确认收货</button>
-        <button v-if="order.status === 'pending_review'" class="btn small" type="button" @click="review(order)">去评价</button>
+        <button v-if="order.status === 'pending_review'" class="btn small" type="button" @click="openReview(order)">去评价</button>
         <button v-if="order.status === 'completed'" class="btn ghost small" type="button" @click="aftersale(order)">申请售后</button>
       </div>
+    </div>
+
+    <div v-if="reviewing" class="section-card review-modal">
+      <div class="section-head" style="margin-bottom: 10px">
+        <h2>评价商品</h2>
+        <button class="link" type="button" @click="reviewing = null">关闭</button>
+      </div>
+      <div class="meta">{{ reviewing.items[0].title }}</div>
+      <div class="stars" style="margin: 10px 0; font-size: 26px">
+        <span v-for="n in 5" :key="n" :class="['star', draft.rating >= n ? 'full' : 'empty']"
+              style="cursor: pointer" @click="draft.rating = n">★</span>
+      </div>
+      <textarea v-model="draft.content" rows="3" placeholder="说说使用感受…"
+                style="width: 100%; border-radius: 12px; border: 1px solid var(--line); padding: 10px"></textarea>
+      <button class="btn" type="button" style="margin-top: 10px" @click="submitReview">提交评价</button>
     </div>
   </section>
 </template>

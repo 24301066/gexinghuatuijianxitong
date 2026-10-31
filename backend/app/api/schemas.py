@@ -119,6 +119,7 @@ class PostOut(BaseModel):
     likes: int
     tags: list[str]
     cover_url: str
+    images: list[str] = []
     video_url: str | None = None
     product: ItemOut | None = None
     created_at: datetime
@@ -341,3 +342,17 @@ class ItemDetailOut(BaseModel):
 class ShopOut(BaseModel):
     merchant: MerchantOut
     items: list[ItemOut]
+
+
+class ReviewIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    content: str = Field(default="", max_length=500)
+
+
+class MyReviewOut(BaseModel):
+    review_id: int
+    item_id: str
+    item_title: str
+    rating: int
+    content: str
+    created_at: datetime

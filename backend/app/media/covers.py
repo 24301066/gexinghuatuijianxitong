@@ -143,3 +143,16 @@ def avatar_cover(name: str, size: int = 96) -> str:
          f'font-family="Segoe UI, sans-serif" font-size="{size // 2.4}" '
          f'font-weight="700" fill="hsl({hue}, 55%, 35%)">{initials}</text>'],
     )
+
+
+def post_gallery(post_id: str, title: str, media_type: str, seconds: int, theme: str,
+                 index: int, size: int = 480) -> str:
+    """帖子多图：同一帖子用不同种子生成多张构图不同的封面。"""
+    variant_id = f"{post_id}-{index}"
+    theme_cycle = ["美妆个护", "家居日用", "食品饮料", "数码配件", "运动户外"]
+    shifted = theme_cycle[(index + 1) % len(theme_cycle)] if index else theme
+    svg = post_cover(variant_id, title, media_type, seconds, shifted or theme, size)
+    badge = f'<text x="{size - 26}" y="{size - 24}" text-anchor="end" ' \
+            f'font-family="Segoe UI, sans-serif" font-size="18" fill="#6b5c4e">' \
+            f'{index + 1}/3</text>'
+    return svg.replace("</svg>", badge + "</svg>")

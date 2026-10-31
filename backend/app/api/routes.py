@@ -67,6 +67,7 @@ def _post_out(post: Post, author_name: str, item: Item | None,
         has_video=video_path is not None, likes=post.likes,
         tags=[tag for tag in (post.tags or "").split(",") if tag],
         cover_url=_cover_url("post", post.post_id),
+        images=[f"/api/v1/media/post/{post.post_id}/image/{index}" for index in range(3)],
         video_url=(f"/api/v1/media/post/{post.post_id}/video" if video_path else None),
         product=_item_out(item) if item is not None else None,
         created_at=post.created_at,
@@ -969,3 +970,48 @@ def merchant_shop(merchant_id: str, size: int = Query(60, ge=1, le=200),
                       .order_by(Item.item_id).limit(size)).all()
     return schemas.ShopOut(merchant=_merchant_out(db, merchant),
                            items=[_item_out(row) for row in rows])
+
+
+@router.get("/media/post/{post_id}/image/{index}", tags=["ugc"])
+def post_gallery_image(post_id: str, index: int, db: Session = Depends(get_db),
+                       runtime: Runtime = Depends(get_runtime)):
+    post = db.get(Post, post_id)
+    if post is None:
+        raise ApiError(404, f"帖子 {post_id} 不存在")
+    item = db.get(Item, post.product_id)
+    theme = item.category if item is not None else "生活"
+    svg = covers.post_gallery(post.post_id, post.title, post.media_type,
+                              post.video_seconds, theme, max(0, min(index, 2)))
+    return Response(content=svg, media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.post("/items/{item_id}/reviews", response_model=schemas.ReviewOut, status_code=201,
+             tags=["catalog"])
+def create_review(item_id: str, payload: schemas.ReviewIn, db: Session = Depends(get_db),
+                  user: User = Depends(current_user)) -> schemas.ReviewOut:
+    if db.get(Item, item_id) is None:
+        raise ApiError(404, f"商品 {item_id} 不存在")
+    row = Review(item_id=item_id, user_id=user.user_id, rating=payload.rating,
+                 content=payload.content.strip(), created_at=utcnow())
+    db.add(row)
+    db.flush()
+    return schemas.ReviewOut(review_id=row.review_id, user_name=user.username,
+                             rating=row.rating, content=row.content,
+                             created_at=row.created_at)
+
+
+@router.get("/me/reviews", response_model=list[schemas.MyReviewOut], tags=["catalog"])
+def my_reviews(db: Session = Depends(get_db),
+               user: User = Depends(current_user)) -> list[schemas.MyReviewOut]:
+    rows = db.scalars(select(Review).where(Review.user_id == user.user_id)
+                      .order_by(Review.created_at.desc()).limit(50)).all()
+    titles = {
+        item.item_id: item.title
+        for item in db.scalars(select(Item).where(
+            Item.item_id.in_({row.item_id for row in rows})))
+    } if rows else {}
+    return [schemas.MyReviewOut(review_id=row.review_id, item_id=row.item_id,
+                                item_title=titles.get(row.item_id, row.item_id),
+                                rating=row.rating, content=row.content,
+                                created_at=row.created_at) for row in rows]
