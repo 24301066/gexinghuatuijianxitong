@@ -47,11 +47,17 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
   return payload
 }
 
+export function mediaUrl(path) {
+  if (!path) return ''
+  return path.startsWith('http') ? path : `${BASE}${path}`
+}
+
 export const api = {
   login: (username, password) =>
     request('/auth/login', { method: 'POST', body: { username, password }, auth: false }),
   me: () => request('/auth/me'),
   profile: () => request('/me/profile'),
+  insights: () => request('/me/insights'),
   health: () => request('/health', { auth: false }),
   items: ({ category = '', page = 1, size = 20 } = {}) => {
     const query = new URLSearchParams({ page, size })
@@ -62,6 +68,17 @@ export const api = {
   similar: (itemId, size = 8) =>
     request(`/items/${encodeURIComponent(itemId)}/similar?size=${size}`),
   recommendations: (size = 10, page = 1) => request(`/recommendations?size=${size}&page=${page}`),
+  posts: ({ productId = '', page = 1, size = 12 } = {}) => {
+    const query = new URLSearchParams({ page, size })
+    if (productId) query.set('product_id', productId)
+    return request(`/posts?${query.toString()}`, { auth: false })
+  },
+  post: (postId) => request(`/posts/${encodeURIComponent(postId)}`, { auth: false }),
+  feed: (size = 8) => request(`/feed?size=${size}`),
+  search: (q) => request(`/search?q=${encodeURIComponent(q)}`),
   postEvent: (itemId, type, rating) =>
-    request('/events', { method: 'POST', body: { item_id: itemId, type, rating } })
+    request('/events', { method: 'POST', body: { item_id: itemId, type, rating } }),
+  searchEvent: (keyword) => request('/events', { method: 'POST', body: { type: 'search', keyword } }),
+  dwellEvent: (postId, seconds) =>
+    request('/events', { method: 'POST', body: { type: 'post_dwell', post_id: postId, seconds } })
 }

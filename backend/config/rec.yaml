@@ -1,10 +1,12 @@
 seed: 20261029
 
-# 三路召回的融合权重（相对值，内部会归一化）
+# 五路召回的融合权重（相对值，内部会归一化）
 weights:
-  cf: 0.5
-  content: 0.3
-  popular: 0.2
+  cf: 0.35
+  content: 0.25
+  popular: 0.15
+  keyword: 0.15   # 最近搜索关键词
+  dwell: 0.10     # 安利帖子停留时长
 
 diversity:
   lambda: 0.7              # MMR 相关性权重，越小越强调多样性
@@ -12,6 +14,7 @@ diversity:
 
 recall:
   max_history: 20          # 每个用户最多取多少个最近交互物品做召回锚点
+  max_keywords: 5          # 关键词偏好只取最近 N 条搜索词
   max_results: 50          # 每次重排的固定窗口，保证翻页顺序稳定
   popular_half_life_days: 14.0
   viewed_penalty: 0.9      # 看过但没买的商品在融合分上降权
@@ -26,3 +29,4 @@ data:
     users: 200
     items: 400
     events: 12000
+    posts: 60

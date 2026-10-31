@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import DatabaseError, OperationalError
 
 from .config import Settings
-from .db.models import Event, Item, User
+from .db.models import Dwell, Event, Item, Post, Search, User
 from .db.seed import ensure_seeded
 from .db.session import init_db, make_engine, make_session_factory
 from .rec.engine import Recommender
@@ -140,7 +140,7 @@ class Runtime:
                 self.seed_stats = None
         return self.seed_stats
 
-    def load_rows(self) -> tuple[list[dict], list[dict]]:
+    def load_rows(self) -> tuple[list[dict], list[dict], list[dict], list[dict], list[dict]]:
         with self.session_factory() as session:
             items = [
                 {"item_id": row.item_id, "title": row.title, "category": row.category,
@@ -153,8 +153,28 @@ class Runtime:
                  "rating": row.rating, "event_time": row.event_time}
                 for row in session.scalars(select(Event))
             ]
+            posts = [
+                {"post_id": row.post_id, "title": row.title, "body": row.body,
+                 "author_id": row.author_id, "media_type": row.media_type,
+                 "video_seconds": row.video_seconds, "product_id": row.product_id,
+                 "likes": row.likes, "tags": row.tags or "",
+                 "created_at": row.created_at}
+                for row in session.scalars(select(Post))
+            ]
+            searches = [
+                {"user_id": row.user_id, "keyword": row.keyword,
+                 "created_at": row.created_at}
+                for row in session.scalars(select(Search))
+            ]
+            dwells = [
+                {"user_id": row.user_id, "post_id": row.post_id,
+                 "seconds": float(row.seconds), "created_at": row.created_at}
+                for row in session.scalars(select(Dwell))
+            ]
         events.sort(key=lambda event: event["event_time"])
-        return items, events
+        searches.sort(key=lambda row: row["created_at"])
+        dwells.sort(key=lambda row: row["created_at"])
+        return items, events, posts, searches, dwells
 
     # ---------------------------------------------------------- engine
 
@@ -165,8 +185,9 @@ class Runtime:
         with self._lock:
             if self._dirty or force:
                 def _fit() -> None:
-                    items, events = self.load_rows()
-                    self.recommender.fit(items, events)
+                    items, events, posts, searches, dwells = self.load_rows()
+                    self.recommender.fit(items, events, posts=posts, dwells=dwells,
+                                         searches=searches)
 
                 retry_sqlite(_fit)
                 self._dirty = False
@@ -180,6 +201,8 @@ class Runtime:
                 "items": session.scalar(select(func.count()).select_from(Item)) or 0,
                 "users": session.scalar(select(func.count()).select_from(User)) or 0,
                 "events": session.scalar(select(func.count()).select_from(Event)) or 0,
+                "posts": session.scalar(select(func.count()).select_from(Post)) or 0,
+                "searches": session.scalar(select(func.count()).select_from(Search)) or 0,
                 "purchases": session.scalar(
                     select(func.count()).select_from(Event).where(Event.type == "purchase")) or 0,
             }

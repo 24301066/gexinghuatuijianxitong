@@ -1,48 +1,38 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { api } from '../api'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { api, mediaUrl } from '../api'
 import { useToastStore } from '../stores'
 import ProductCard from '../components/ProductCard.vue'
+import PostCard from '../components/PostCard.vue'
 
 const route = useRoute()
+const router = useRouter()
 const toast = useToastStore()
 
 const item = ref(null)
 const similar = ref([])
+const posts = ref([])
 const loading = ref(true)
 const error = ref('')
-const reporting = ref(false)
-const viewReported = ref(false)
+const busy = ref(false)
 
-const VIEW_GUARD_MS = 30_000
+const cover = computed(() => (item.value ? mediaUrl(item.value.cover_url) : ''))
+const tags = computed(() => item.value?.tags || [])
 
-function guardKey(itemId) {
-  return `gt_view_${itemId}`
-}
-
-async function reportView(itemId) {
-  const last = Number(sessionStorage.getItem(guardKey(itemId)) || 0)
-  if (Date.now() - last < VIEW_GUARD_MS) return
-  sessionStorage.setItem(guardKey(itemId), String(Date.now()))
-  try {
-    await api.postEvent(itemId, 'view')
-    viewReported.value = true
-  } catch (err) {
-    sessionStorage.removeItem(guardKey(itemId))
-    toast.push(`浏览行为上报失败：${err.message}`, 'error')
-  }
-}
-
-async function load(itemId) {
+async function load() {
   loading.value = true
   error.value = ''
-  similar.value = []
   try {
-    item.value = await api.item(itemId)
-    const result = await api.similar(itemId, 6)
-    similar.value = result.items
-    await reportView(itemId)
+    const data = await api.item(route.params.itemId)
+    item.value = data
+    api.postEvent(data.item_id, 'view').catch(() => {})
+    const [near, shares] = await Promise.all([
+      api.similar(data.item_id, 6).catch(() => ({ items: [] })),
+      api.posts({ productId: data.item_id, size: 4 }).catch(() => ({ posts: [] }))
+    ])
+    similar.value = near.items || []
+    posts.value = shares.posts || []
   } catch (err) {
     error.value = err.message
   } finally {
@@ -50,65 +40,71 @@ async function load(itemId) {
   }
 }
 
-async function report(type) {
-  if (!item.value || reporting.value) return
-  reporting.value = true
+async function act(type) {
+  if (!item.value || busy.value) return
+  busy.value = true
   try {
     await api.postEvent(item.value.item_id, type)
-    toast.push(type === 'cart' ? '已加入购物车' : '已记录购买', 'info')
+    toast.push(type === 'purchase' ? '已模拟购买，推荐会更新' : '已加入购物车', 'info')
   } catch (err) {
-    toast.push(`上报失败：${err.message}，可以再点一次重试`, 'error')
+    toast.push(err.message, 'error')
   } finally {
-    reporting.value = false
+    busy.value = false
   }
 }
 
-onMounted(() => load(route.params.itemId))
-watch(() => route.params.itemId, (next) => {
-  if (next) load(next)
-})
+onMounted(load)
 </script>
 
 <template>
-  <section class="stack">
-    <RouterLink class="muted" to="/">← 返回推荐流</RouterLink>
+  <section>
+    <button class="link" type="button" @click="router.back()">← 返回</button>
 
-    <div v-if="loading" class="state">加载中…</div>
-    <div v-else-if="error" class="state error">
-      <p>{{ error }}</p>
-      <button class="primary" type="button" @click="load(route.params.itemId)">重试</button>
-    </div>
+    <div v-if="loading" class="empty">加载中…</div>
+    <div v-else-if="error" class="notice">{{ error }}</div>
 
     <template v-else-if="item">
-      <article class="card detail">
-        <h1>{{ item.title }}</h1>
-        <p class="meta">
-          <span class="tag">{{ item.category }}</span>
-          <span class="price">¥{{ Number(item.price).toFixed(2) }}</span>
-        </p>
-        <p v-if="item.tags.length" class="tags">
-          <span v-for="tag in item.tags" :key="tag" class="chip">{{ tag }}</span>
-        </p>
-        <p>{{ item.description }}</p>
-        <div class="actions">
-          <button class="primary" type="button" :disabled="reporting" @click="report('cart')">
-            加入购物车
-          </button>
-          <button class="secondary" type="button" :disabled="reporting" @click="report('purchase')">
-            模拟购买
-          </button>
-          <span v-if="viewReported" class="muted small">已记录这次浏览</span>
+      <div class="detail">
+        <div class="cover">
+          <img :src="cover" :alt="item.title" />
         </div>
-      </article>
+        <div>
+          <h1>{{ item.title }}</h1>
+          <div class="meta">
+            <span>{{ item.category }}</span>
+            <span class="dot" />
+            <span class="price" style="font-size: 22px">¥{{ Number(item.price).toFixed(0) }}</span>
+          </div>
+          <div class="tag-row">
+            <span v-for="tag in tags" :key="tag" class="tag">{{ tag }}</span>
+          </div>
+          <p class="body-text">{{ item.description }}</p>
+          <div style="display: flex; gap: 10px; margin-top: 18px">
+            <button class="btn" type="button" :disabled="busy" @click="act('cart')">加入购物车</button>
+            <button class="btn ghost" type="button" :disabled="busy" @click="act('purchase')">模拟购买</button>
+          </div>
+        </div>
+      </div>
 
-      <div class="section-head">
-        <h2>相似推荐</h2>
-        <p class="muted">来自后端 /items/{id}/similar，不是前端静态数据。</p>
-      </div>
-      <div v-if="similar.length === 0" class="state">这个商品暂时没有相似推荐。</div>
-      <div v-else class="grid">
-        <ProductCard v-for="row in similar" :key="row.item_id" :item="row" />
-      </div>
+      <section v-if="posts.length" class="section">
+        <div class="section-head">
+          <h2>买家安利</h2>
+          <span>{{ posts.length }} 条分享</span>
+        </div>
+        <div class="masonry">
+          <PostCard v-for="post in posts" :key="post.post_id" :post="post" />
+        </div>
+      </section>
+
+      <section v-if="similar.length" class="section">
+        <div class="section-head">
+          <h2>相似推荐</h2>
+          <span>来自 /items/{id}/similar</span>
+        </div>
+        <div class="grid">
+          <ProductCard v-for="row in similar" :key="row.item_id" :item="row" />
+        </div>
+      </section>
     </template>
   </section>
 </template>

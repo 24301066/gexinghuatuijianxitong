@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.db.models import Event
 
 REQUIRED_FIELDS = {"item_id", "title", "category", "price", "tags", "score", "rank",
-                   "reason", "sources"}
+                   "reason", "sources", "cover_url"}
 
 
 def test_recommendation_shape_and_order(client, auth_headers):
@@ -22,7 +22,7 @@ def test_recommendation_shape_and_order(client, auth_headers):
         assert set(item) == REQUIRED_FIELDS
         assert item["rank"] == position
         assert item["reason"]
-        assert set(item["sources"]) == {"cf", "content", "popular"}
+        assert set(item["sources"]) == {"cf", "content", "popular", "keyword", "dwell"}
     scores = [item["score"] for item in body["items"]]
     assert scores == sorted(scores, reverse=True)
 

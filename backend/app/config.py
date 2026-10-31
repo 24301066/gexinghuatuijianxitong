@@ -13,9 +13,9 @@ import yaml
 
 DEFAULT_REC_CONFIG: dict = {
     "seed": 20261029,
-    "weights": {"cf": 0.5, "content": 0.3, "popular": 0.2},
+    "weights": {"cf": 0.35, "content": 0.25, "popular": 0.15, "keyword": 0.15, "dwell": 0.1},
     "diversity": {"lambda": 0.7, "max_category_ratio": 0.4},
-    "recall": {"max_history": 20, "popular_half_life_days": 14.0,
+    "recall": {"max_history": 20, "max_keywords": 5, "popular_half_life_days": 14.0,
                "max_results": 50, "viewed_penalty": 0.9},
     "eval": {"cutoffs": [5, 10], "split_ratio": 0.8,
              "strategies": ["popular", "hybrid"]},

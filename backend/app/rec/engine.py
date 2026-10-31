@@ -34,10 +34,18 @@ class Recommender:
         self.history: dict[str, list[dict]] = {}
         self.profiles: dict[str, dict] = {}
         self.fitted_at: datetime | None = None
+        self.posts: dict[str, dict] = {}
+        self.dwells: list[dict] = []
+        self.user_keywords: dict[str, list[str]] = {}
+        self.user_dwells: dict[str, list[dict]] = {}
+        self.item_tokens: list[set[str]] = []
+        self.idf: dict[str, float] = {}
 
     # ------------------------------------------------------------------ fit
 
-    def fit(self, items: list[dict], events: list[dict], now: datetime | None = None) -> "Recommender":
+    def fit(self, items: list[dict], events: list[dict], now: datetime | None = None,
+            posts: list[dict] | None = None, dwells: list[dict] | None = None,
+            searches: list[dict] | None = None) -> "Recommender":
         cfg = self.config
         half_life = float(cfg["recall"]["popular_half_life_days"])
         max_history = int(cfg["recall"]["max_history"])
@@ -78,14 +86,83 @@ class Recommender:
         self.ready = len(self.item_ids) > 0
         self.degraded = not self.ready
         self.fitted_at = now
+
+        # --- UGC signals: posts the user dwelled on + recent search keywords ---
+        self.posts = {post["post_id"]: post for post in (posts or [])}
+        self.dwells = list(dwells or [])
+        max_keywords = int(cfg["recall"].get("max_keywords", 5))
+        self.user_keywords: dict[str, list[str]] = {}
+        for row in sorted(searches or [], key=lambda item: item["created_at"]):
+            bucket = self.user_keywords.setdefault(row["user_id"], [])
+            bucket.append(str(row["keyword"]))
+            del bucket[:-max_keywords]
+        self.user_dwells: dict[str, list[dict]] = {}
+        for row in self.dwells:
+            self.user_dwells.setdefault(row["user_id"], []).append(row)
+
+        self.item_tokens = [
+            set(text.tokenize(text.document_of(self.meta[item_id]["title"],
+                                               self.meta[item_id]["category"],
+                                               self.meta[item_id].get("tags", ""))))
+            for item_id in self.item_ids
+        ]
+        document_frequency: Counter[str] = Counter()
+        for tokens in self.item_tokens:
+            document_frequency.update(tokens)
+        total_documents = max(1, len(self.item_tokens))
+        self.idf = {token: math.log((1 + total_documents) / (1 + count)) + 1.0
+                    for token, count in document_frequency.items()}
         return self
 
     # --------------------------------------------------------------- helpers
 
     def _weights(self) -> dict[str, float]:
-        raw = self.config["weights"]
-        total = sum(float(value) for value in raw.values()) or 1.0
-        return {name: float(value) / total for name, value in raw.items()}
+        names = ("cf", "content", "popular", "keyword", "dwell")
+        raw = {name: float(self.config["weights"].get(name, 0.0)) for name in names}
+        total = sum(raw.values()) or 1.0
+        return {name: value / total for name, value in raw.items()}
+
+    def _keyword_scores(self, user_id: str) -> tuple[np.ndarray, str | None]:
+        keywords = self.user_keywords.get(user_id) or []
+        scores = np.zeros(len(self.item_ids), dtype=np.float64)
+        if not keywords or not self.item_tokens:
+            return scores, None
+        tokens: set[str] = set()
+        for keyword in keywords:
+            tokens.update(text.tokenize(keyword))
+        if not tokens:
+            return scores, None
+        for position, item_tokens in enumerate(self.item_tokens):
+            overlap = sum(self.idf.get(token, 1.0) for token in tokens & item_tokens)
+            if overlap:
+                scores[position] = overlap
+        return stats.normalize(scores), keywords[-1]
+
+    def _dwell_scores(self, user_id: str) -> tuple[np.ndarray, str | None]:
+        rows = self.user_dwells.get(user_id) or []
+        scores = np.zeros(len(self.item_ids), dtype=np.float64)
+        if not rows:
+            return scores, None
+        anchor_title: str | None = None
+        best_seconds = 0.0
+        for row in rows:
+            post = self.posts.get(row["post_id"])
+            if post is None:
+                continue
+            position = self.index.get(post["product_id"])
+            if position is None:
+                continue
+            weight = min(max(float(row["seconds"]), 0.0), 60.0) / 60.0
+            if weight <= 0:
+                continue
+            scores[position] += weight
+            if self.content.size:
+                neighbours = np.maximum(self.content @ self.content[position], 0.0)
+                scores += 0.5 * weight * neighbours
+            if float(row["seconds"]) > best_seconds:
+                best_seconds = float(row["seconds"])
+                anchor_title = str(post.get("title") or "")
+        return stats.normalize(scores), anchor_title
 
     def _anchor_weights(self, history: list[dict]) -> tuple[list[int], np.ndarray]:
         positions: list[int] = []
@@ -102,21 +179,24 @@ class Recommender:
         return positions, np.asarray(weights, dtype=np.float64)
 
     def _reason(self, position: int, scores: dict[str, np.ndarray],
-                anchors: list[int], anchor_weights: np.ndarray) -> tuple[str, str]:
+                anchors: list[int], anchor_weights: np.ndarray,
+                keyword: str | None = None, dwell_title: str | None = None) -> tuple[str, str]:
         item = self.meta[self.item_ids[position]]
-        if not anchors:
-            return "近期热门，先随便逛逛", "popular"
         contributions = {name: float(values[position]) for name, values in scores.items()}
         source = max(contributions, key=lambda name: contributions[name])
-        if source == "cf":
+        if not anchors and not keyword and not dwell_title:
+            return "近期热门，先随便逛逛", "popular"
+        if source == "cf" and anchors:
             best = int(np.argmax(self.similarity[anchors, position] * anchor_weights))
             anchor_id = self.item_ids[anchors[best]]
             return f"看过「{self.meta[anchor_id]['title']}」的人也常看", source
         if source == "content":
-            profile = self.profiles.get("", {})
-            category = item["category"]
-            return f"与你偏好的「{category}」类目相近", source
-        return f"「{item['category']}」近期热度上升", source
+            return f"与你偏好的「{item['category']}」类目相近", source
+        if source == "keyword" and keyword:
+            return f"你搜过「{keyword}」，这里有相关商品", source
+        if source == "dwell" and dwell_title:
+            return f"你看得较久的安利「{dwell_title}」", source
+        return f"「{item['category']}」近期热度上升", "popular"
 
     def _rerank(self, blended: np.ndarray, mask: np.ndarray, limit: int, allowed: int,
                 lam: float) -> list[tuple[int, float]]:
@@ -184,13 +264,17 @@ class Recommender:
             cf_scores /= weights_sum
             del weights_sum
 
+        keyword_scores, keyword_term = self._keyword_scores(user_id)
+        dwell_scores, dwell_title = self._dwell_scores(user_id)
+
         raw = {
             "cf": stats.normalize(cf_scores),
             "content": stats.normalize(content_scores),
             "popular": stats.normalize(self.popularity),
+            "keyword": stats.normalize(keyword_scores),
+            "dwell": stats.normalize(dwell_scores),
         }
-        blended = (weights["cf"] * raw["cf"] + weights["content"] * raw["content"]
-                   + weights["popular"] * raw["popular"])
+        blended = sum(weights[name] * values for name, values in raw.items())
 
         mask = np.ones(len(self.item_ids), dtype=bool)
         penalty = float(self.config["recall"].get("viewed_penalty", 0.9))
@@ -200,7 +284,7 @@ class Recommender:
             elif item_id in seen:
                 blended[position] *= penalty
 
-        cold_start = not anchors
+        cold_start = not anchors and keyword_term is None and dwell_title is None
         if cold_start:
             blended = stats.normalize(self.popularity).copy()
 
@@ -218,7 +302,8 @@ class Recommender:
         items = []
         for offset, (position, final_score) in enumerate(window):
             item_id = self.item_ids[position]
-            reason, source = self._reason(position, raw, anchors, anchor_weights)
+            reason, source = self._reason(position, raw, anchors, anchor_weights,
+                                         keyword_term, dwell_title)
             items.append({
                 "item_id": item_id,
                 "title": self.meta[item_id]["title"],

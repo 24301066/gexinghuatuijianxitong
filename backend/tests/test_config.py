@@ -19,7 +19,7 @@ def test_defaults_are_merged(tmp_path):
 
 def test_zero_weights_are_rejected(tmp_path):
     config_file = tmp_path / "rec.yaml"
-    config_file.write_text("weights:\n  cf: 0\n  content: 0\n  popular: 0\n", encoding="utf-8")
+    config_file.write_text("weights:\n  cf: 0\n  content: 0\n  popular: 0\n  keyword: 0\n  dwell: 0\n", encoding="utf-8")
     with pytest.raises(ValueError):
         load_rec_config(config_file)
 

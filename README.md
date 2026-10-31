@@ -6,12 +6,15 @@
 ![version](https://img.shields.io/badge/version-0.1.0-informational)
 ![platform](https://img.shields.io/badge/platform-Windows%20desktop-4f46e5)
 
-一个可离线运行的电商个性化推荐演示系统：**Windows 桌面应用**为主交付形态，同一份代码也能用浏览器开发模式跑。
+一个可离线运行的电商内容社区 + 个性化推荐系统：**Windows 桌面应用**为主交付形态，同一份代码也能用浏览器开发模式跑。
 
 - 后端：Python 3.12 + FastAPI + SQLAlchemy + SQLite
 - 前端：Vue 3 + Vite（构建产物由后端托管，桌面端装进原生窗口）
 - 桌面壳：wxPython 原生窗口 + 系统 WebView2 渲染，PyInstaller 打包
-- 推荐：item-CF + TF-IDF 内容相似 + 时间衰减热门 → 归一化加权融合 → MMR 多样性重排
+- 内容：买家安利图文/短视频（封面 + 时长），商品与安利互链，可点"购买同款"
+- 封面：离线确定性 SVG 插画（类目配色 + 标题），`data/media/` 放假图/视频会自动优先使用
+- 推荐：item-CF + TF-IDF 内容相似 + 时间衰减热门 + **搜索关键词** + **安利停留时长** → 归一化加权融合 → MMR 多样性重排
+- 界面：首页混合信息流 / 发现 / 搜索 / 我的 四 Tab，桌面窗口内直接可用
 - 评估：按时间切分，Recall@K / NDCG@K / 覆盖率 / 新颖度
 
 ## 三条使用路径

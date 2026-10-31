@@ -27,6 +27,11 @@
             "title": "Model Version",
             "type": "string"
           },
+          "posts": {
+            "default": 0,
+            "title": "Posts",
+            "type": "integer"
+          },
           "purchases": {
             "title": "Purchases",
             "type": "integer"
@@ -56,13 +61,77 @@
         "title": "AdminMetricsOut",
         "type": "object"
       },
+      "DwellHitOut": {
+        "properties": {
+          "cover_url": {
+            "title": "Cover Url",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "post_id": {
+            "title": "Post Id",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "post_id",
+          "title",
+          "seconds",
+          "cover_url",
+          "created_at"
+        ],
+        "title": "DwellHitOut",
+        "type": "object"
+      },
       "EventIn": {
         "properties": {
           "item_id": {
-            "maxLength": 40,
-            "minLength": 1,
-            "title": "Item Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id"
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword"
+          },
+          "post_id": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Id"
           },
           "rating": {
             "anyOf": [
@@ -77,14 +146,26 @@
             ],
             "title": "Rating"
           },
+          "seconds": {
+            "anyOf": [
+              {
+                "maximum": 3600.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
           "type": {
-            "pattern": "^(view|cart|purchase|rating)$",
+            "pattern": "^(view|cart|purchase|rating|search|post_dwell)$",
             "title": "Type",
             "type": "string"
           }
         },
         "required": [
-          "item_id",
           "type"
         ],
         "title": "EventIn",
@@ -107,8 +188,15 @@
             "type": "string"
           },
           "item_id": {
-            "title": "Item Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id"
           },
           "type": {
             "title": "Type",
@@ -117,11 +205,44 @@
         },
         "required": [
           "event_id",
-          "item_id",
           "type",
           "event_time"
         ],
         "title": "EventOut",
+        "type": "object"
+      },
+      "FeedOut": {
+        "properties": {
+          "hero": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecommendationItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/PostOut"
+            },
+            "title": "Posts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "posts",
+          "items"
+        ],
+        "title": "FeedOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -155,6 +276,11 @@
             "title": "Model Version",
             "type": "string"
           },
+          "posts": {
+            "default": 0,
+            "title": "Posts",
+            "type": "integer"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -180,10 +306,70 @@
         "title": "HealthOut",
         "type": "object"
       },
+      "InsightsOut": {
+        "properties": {
+          "activity_level": {
+            "title": "Activity Level",
+            "type": "number"
+          },
+          "avg_price": {
+            "title": "Avg Price",
+            "type": "number"
+          },
+          "categories": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Categories",
+            "type": "object"
+          },
+          "liked_items": {
+            "items": {
+              "$ref": "#/components/schemas/RecommendationItem"
+            },
+            "title": "Liked Items",
+            "type": "array"
+          },
+          "recent_dwells": {
+            "items": {
+              "$ref": "#/components/schemas/DwellHitOut"
+            },
+            "title": "Recent Dwells",
+            "type": "array"
+          },
+          "recent_searches": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHitOut"
+            },
+            "title": "Recent Searches",
+            "type": "array"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "categories",
+          "avg_price",
+          "activity_level",
+          "recent_searches",
+          "recent_dwells",
+          "liked_items"
+        ],
+        "title": "InsightsOut",
+        "type": "object"
+      },
       "ItemOut": {
         "properties": {
           "category": {
             "title": "Category",
+            "type": "string"
+          },
+          "cover_url": {
+            "default": "",
+            "title": "Cover Url",
             "type": "string"
           },
           "description": {
@@ -274,6 +460,130 @@
         "title": "LoginIn",
         "type": "object"
       },
+      "PostOut": {
+        "properties": {
+          "author_id": {
+            "title": "Author Id",
+            "type": "string"
+          },
+          "author_name": {
+            "title": "Author Name",
+            "type": "string"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "cover_url": {
+            "title": "Cover Url",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "has_video": {
+            "default": false,
+            "title": "Has Video",
+            "type": "boolean"
+          },
+          "likes": {
+            "title": "Likes",
+            "type": "integer"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          },
+          "post_id": {
+            "title": "Post Id",
+            "type": "string"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "video_seconds": {
+            "title": "Video Seconds",
+            "type": "integer"
+          },
+          "video_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Url"
+          }
+        },
+        "required": [
+          "post_id",
+          "title",
+          "body",
+          "author_id",
+          "author_name",
+          "media_type",
+          "video_seconds",
+          "likes",
+          "tags",
+          "cover_url",
+          "created_at"
+        ],
+        "title": "PostOut",
+        "type": "object"
+      },
+      "PostPageOut": {
+        "properties": {
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/PostOut"
+            },
+            "title": "Posts",
+            "type": "array"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "posts",
+          "total",
+          "page",
+          "size"
+        ],
+        "title": "PostPageOut",
+        "type": "object"
+      },
       "ProfileOut": {
         "properties": {
           "activity_level": {
@@ -337,6 +647,11 @@
         "properties": {
           "category": {
             "title": "Category",
+            "type": "string"
+          },
+          "cover_url": {
+            "default": "",
+            "title": "Cover Url",
             "type": "string"
           },
           "item_id": {
@@ -433,6 +748,62 @@
           "items"
         ],
         "title": "RecommendationOut",
+        "type": "object"
+      },
+      "SearchHitOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "keyword": {
+            "title": "Keyword",
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword",
+          "created_at"
+        ],
+        "title": "SearchHitOut",
+        "type": "object"
+      },
+      "SearchOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/PostOut"
+            },
+            "title": "Posts",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "recommended": {
+            "items": {
+              "$ref": "#/components/schemas/RecommendationItem"
+            },
+            "title": "Recommended",
+            "type": "array"
+          }
+        },
+        "required": [
+          "query",
+          "items",
+          "posts",
+          "recommended"
+        ],
+        "title": "SearchOut",
         "type": "object"
       },
       "SimilarOut": {
@@ -705,6 +1076,51 @@
         ]
       }
     },
+    "/api/v1/feed": {
+      "get": {
+        "operationId": "feed_api_v1_feed_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Feed",
+        "tags": [
+          "ugc"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "health_api_v1_health_get",
@@ -894,6 +1310,27 @@
         ]
       }
     },
+    "/api/v1/me/insights": {
+      "get": {
+        "operationId": "my_insights_api_v1_me_insights_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "My Insights",
+        "tags": [
+          "behaviour"
+        ]
+      }
+    },
     "/api/v1/me/profile": {
       "get": {
         "operationId": "my_profile_api_v1_me_profile_get",
@@ -912,6 +1349,209 @@
         "summary": "My Profile",
         "tags": [
           "behaviour"
+        ]
+      }
+    },
+    "/api/v1/media/post/{post_id}/video": {
+      "get": {
+        "operationId": "post_video_api_v1_media_post__post_id__video_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "title": "Post Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Video",
+        "tags": [
+          "ugc"
+        ]
+      }
+    },
+    "/api/v1/media/{kind}/{media_id}": {
+      "get": {
+        "operationId": "media_api_v1_media__kind___media_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "title": "Media Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Media",
+        "tags": [
+          "ugc"
+        ]
+      }
+    },
+    "/api/v1/posts": {
+      "get": {
+        "operationId": "list_posts_api_v1_posts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 12,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Posts",
+        "tags": [
+          "ugc"
+        ]
+      }
+    },
+    "/api/v1/posts/{post_id}": {
+      "get": {
+        "operationId": "get_post_api_v1_posts__post_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "title": "Post Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Post",
+        "tags": [
+          "ugc"
         ]
       }
     },
@@ -968,6 +1608,50 @@
         "summary": "Recommendations",
         "tags": [
           "recommend"
+        ]
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "operationId": "search_api_v1_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 60,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search",
+        "tags": [
+          "ugc"
         ]
       }
     }

@@ -37,6 +37,7 @@ class ItemOut(BaseModel):
     price: float
     tags: list[str]
     description: str
+    cover_url: str = ""
 
 
 class ItemPageOut(BaseModel):
@@ -47,14 +48,17 @@ class ItemPageOut(BaseModel):
 
 
 class EventIn(BaseModel):
-    item_id: str = Field(min_length=1, max_length=40)
-    type: str = Field(pattern="^(view|cart|purchase|rating)$")
+    type: str = Field(pattern="^(view|cart|purchase|rating|search|post_dwell)$")
+    item_id: str | None = Field(default=None, max_length=40)
     rating: float | None = Field(default=None, ge=1, le=5)
+    keyword: str | None = Field(default=None, max_length=120)
+    post_id: str | None = Field(default=None, max_length=40)
+    seconds: float | None = Field(default=None, ge=0, le=3600)
 
 
 class EventOut(BaseModel):
     event_id: int
-    item_id: str
+    item_id: str | None = None
     type: str
     event_time: datetime
     duplicate: bool = False
@@ -70,6 +74,7 @@ class RecommendationItem(BaseModel):
     rank: int
     reason: str
     sources: dict[str, float]
+    cover_url: str = ""
 
 
 class RecommendationOut(BaseModel):
@@ -97,6 +102,66 @@ class ProfileOut(BaseModel):
     history_size: int
 
 
+class PostOut(BaseModel):
+    post_id: str
+    title: str
+    body: str
+    author_id: str
+    author_name: str
+    media_type: str
+    video_seconds: int
+    has_video: bool = False
+    likes: int
+    tags: list[str]
+    cover_url: str
+    video_url: str | None = None
+    product: ItemOut | None = None
+    created_at: datetime
+
+
+class PostPageOut(BaseModel):
+    posts: list[PostOut]
+    total: int
+    page: int
+    size: int
+
+
+class FeedOut(BaseModel):
+    hero: PostOut | None = None
+    posts: list[PostOut]
+    items: list[RecommendationItem]
+
+
+class SearchOut(BaseModel):
+    query: str
+    items: list[ItemOut]
+    posts: list[PostOut]
+    recommended: list[RecommendationItem]
+
+
+class SearchHitOut(BaseModel):
+    keyword: str
+    created_at: datetime
+
+
+class DwellHitOut(BaseModel):
+    post_id: str
+    title: str
+    seconds: float
+    cover_url: str
+    created_at: datetime
+
+
+class InsightsOut(BaseModel):
+    user_id: str
+    categories: dict[str, float]
+    avg_price: float
+    activity_level: float
+    recent_searches: list[SearchHitOut]
+    recent_dwells: list[DwellHitOut]
+    liked_items: list[RecommendationItem]
+
+
 class HealthOut(BaseModel):
     status: str
     version: str
@@ -104,6 +169,7 @@ class HealthOut(BaseModel):
     items: int
     users: int
     events: int
+    posts: int = 0
     demo_data: bool
 
 
@@ -111,6 +177,7 @@ class AdminMetricsOut(BaseModel):
     items: int
     users: int
     events: int
+    posts: int = 0
     purchases: int
     model_version: str
     fitted_at: datetime | None

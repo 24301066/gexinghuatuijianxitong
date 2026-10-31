@@ -156,3 +156,104 @@ def dataset_fingerprint(items: list[dict], users: list[dict], events: list[dict]
         "event_types": sorted([event["type"] for event in events]),
     }, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+POST_TEMPLATES = {
+    "美妆个护": ["空瓶记录｜{title}真的会回购", "敏感肌实测：{title}用了一个月",
+                 "早八人必备，{title}两分钟搞定"],
+    "数码配件": ["开箱｜{title}值不值这个价", "用了两周，{title}的优缺点都在这",
+                 "{title}配这个桌面，效率翻倍"],
+    "食品饮料": ["囤货清单｜{title}好吃到停不下来", "打工人早餐救星：{title}",
+                 "{title}测评，配料表我看了三遍"],
+    "家居日用": ["小户型收纳｜{title}真的省地方", "居家好物｜{title}用了一个月",
+                 "{title}实测：细节做得比想象好"],
+    "运动户外": ["周末徒步｜{title}背了一天不累", "减脂期必备：{title}实测",
+                 "{title}开箱，做工比价格更惊喜"],
+}
+
+POST_BODIES = [
+    "买之前纠结了很久，实际用下来比预期好。{category}里这个价位算很能打，细节和手感都在线。",
+    "被朋友安利的，用了一周来交作业。日常使用完全够，{tags}这几个点确实做到了。",
+    "冲着口碑买的，没踩雷。包装、做工都挺用心，已经推荐给同事了。",
+    "对比了三家最后选它，主要是{tags}，实际体验也对得起价格。",
+]
+
+KEYWORDS_BY_CATEGORY = {
+    "美妆个护": ["面膜", "精华", "防晒", "洁面", "口红"],
+    "数码配件": ["耳机", "键盘", "充电宝", "硬盘", "音箱"],
+    "食品饮料": ["咖啡", "坚果", "燕麦", "巧克力", "气泡水"],
+    "家居日用": ["收纳", "香薰", "台灯", "枕头", "砂锅"],
+    "运动户外": ["瑜伽垫", "登山", "跳绳", "哑铃", "露营"],
+}
+
+
+def build_posts(rng: np.random.Generator, items: list[dict], users: list[dict],
+                count: int, now: datetime) -> list[dict]:
+    authors = [user for user in users if user["role"] != "admin"] or users
+    posts: list[dict] = []
+    for index in range(count):
+        item = items[int(rng.integers(0, len(items)))]
+        category = item["category"]
+        template = POST_TEMPLATES[category][int(rng.integers(0, 3))]
+        tags = item["tags"].split(",") if item["tags"] else []
+        tag_text = "、".join(tags[:2]) or "性价比"
+        body = POST_BODIES[int(rng.integers(0, len(POST_BODIES)))].format(
+            category=category, tags=tag_text)
+        is_video = index % 3 == 1
+        posts.append({
+            "post_id": f"P{index + 1:04d}",
+            "author_id": authors[int(rng.integers(0, len(authors)))]["user_id"],
+            "title": template.format(title=item["title"]),
+            "body": body,
+            "media_type": "video" if is_video else "image",
+            "video_seconds": int(rng.integers(12, 75)) if is_video else 0,
+            "product_id": item["item_id"],
+            "likes": int(rng.integers(3, 2600)),
+            "tags": item["tags"],
+            "created_at": now - timedelta(days=float(rng.uniform(0, 60)),
+                                          seconds=float(rng.integers(0, 86400))),
+        })
+    posts.sort(key=lambda post: post["created_at"], reverse=True)
+    return posts
+
+
+def build_searches(rng: np.random.Generator, users: list[dict], items: list[dict],
+                   per_user: int, now: datetime) -> list[dict]:
+    categories = sorted({item["category"] for item in items})
+    active = [user for user in users if user["role"] != "admin"] or users
+    rows: list[dict] = []
+    for user in active:
+        if rng.random() < 0.55:
+            continue
+        count = int(rng.integers(1, per_user + 1))
+        category = categories[int(rng.integers(0, len(categories)))]
+        words = KEYWORDS_BY_CATEGORY[category]
+        for _ in range(count):
+            rows.append({
+                "user_id": user["user_id"],
+                "keyword": words[int(rng.integers(0, len(words)))],
+                "created_at": now - timedelta(days=float(rng.uniform(0, 20)),
+                                              seconds=float(rng.integers(0, 86400))),
+            })
+    rows.sort(key=lambda row: row["created_at"])
+    return rows
+
+
+def build_dwells(rng: np.random.Generator, users: list[dict], posts: list[dict],
+                 per_user: int, now: datetime) -> list[dict]:
+    active = [user for user in users if user["role"] != "admin"] or users
+    rows: list[dict] = []
+    for user in active:
+        if rng.random() < 0.5:
+            continue
+        for _ in range(int(rng.integers(1, per_user + 1))):
+            post = posts[int(rng.integers(0, len(posts)))]
+            rows.append({
+                "user_id": user["user_id"],
+                "post_id": post["post_id"],
+                "seconds": float(round(rng.uniform(3, 90), 1)),
+                "created_at": now - timedelta(days=float(rng.uniform(0, 20)),
+                                              seconds=float(rng.integers(0, 86400))),
+            })
+    rows.sort(key=lambda row: row["created_at"])
+    return rows

@@ -1,92 +1,100 @@
 <script setup>
-import { onMounted, ref } from 'vue'
-import { api } from '../api'
+import { computed, onMounted, ref } from 'vue'
+import { api, mediaUrl } from '../api'
 import { useToastStore } from '../stores'
 import ProductCard from '../components/ProductCard.vue'
-
-const PAGE_SIZE = 6
-
-const items = ref([])
-const page = ref(1)
-const loading = ref(false)
-const more = ref(true)
-const partial = ref(false)
-const degraded = ref(false)
-const error = ref('')
-const loaded = ref(false)
+import PostCard from '../components/PostCard.vue'
 
 const toast = useToastStore()
+const loading = ref(true)
+const error = ref('')
+const feed = ref({ hero: null, posts: [], items: [] })
+const freshPosts = ref([])
 
-async function load(reset = false) {
-  if (loading.value) return
+const hero = computed(() => feed.value.hero)
+const heroCover = computed(() => (hero.value ? mediaUrl(hero.value.cover_url) : ''))
+const heroIsVideo = computed(() => hero.value?.media_type === 'video')
+const heroDuration = computed(() => {
+  const seconds = Number(hero.value?.video_seconds || 0)
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+})
+
+async function load() {
   loading.value = true
   error.value = ''
-  const targetPage = reset ? 1 : page.value
   try {
-    const data = await api.recommendations(PAGE_SIZE, targetPage)
-    const known = new Set(items.value.map((item) => item.item_id))
-    const incoming = data.items.filter((item) => !known.has(item.item_id))
-    items.value = reset ? data.items : items.value.concat(incoming)
-    page.value = targetPage + 1
-    partial.value = data.partial
-    degraded.value = data.degraded
-    more.value = !data.partial && incoming.length > 0
-    if (data.cold_start) {
-      toast.push('还没有你的行为记录，先按热门推荐；浏览几个商品后推荐会更准', 'info')
-    }
-    if (data.degraded) {
-      toast.push('推荐服务降级为热门兜底', 'warn')
-    }
+    const [data, posts] = await Promise.all([api.feed(8), api.posts({ page: 2, size: 4 })])
+    feed.value = data
+    freshPosts.value = posts.posts
   } catch (err) {
     error.value = err.message
-    if (err.status === 401) {
-      error.value = '登录状态已失效，请重新登录'
-    }
+    toast.push(err.message, 'error')
   } finally {
     loading.value = false
-    loaded.value = true
   }
 }
 
-function retry() {
-  load(items.value.length === 0)
-}
-
-onMounted(() => load(true))
+onMounted(load)
 </script>
 
 <template>
-  <section class="stack">
-    <div class="section-head">
-      <h1>猜你喜欢</h1>
-      <p class="muted">基于你的浏览/加购/购买行为，融合协同过滤、内容相似与近期热度。</p>
+  <section>
+    <div class="page-head">
+      <h1>今天逛点什么</h1>
+      <p>买家安利 + 为你推荐，边逛边买。</p>
     </div>
 
-    <p v-if="degraded" class="banner warn">当前为热门兜底结果（推荐服务降级）</p>
-
-    <div v-if="loading && items.length === 0" class="state">加载中…</div>
-
-    <div v-else-if="error" class="state error">
-      <p>{{ error }}</p>
-      <button class="primary" type="button" @click="retry">重试</button>
+    <div v-if="error" class="notice">
+      {{ error }} <button class="link" type="button" @click="load">重试</button>
     </div>
 
-    <div v-else-if="loaded && items.length === 0" class="state">
-      <p>暂时没有可推荐的商品。</p>
-      <p class="muted">商品目录可能为空，先运行 <code>python tools/seed_demo.py</code> 生成演示数据。</p>
-      <button class="primary" type="button" @click="retry">重试</button>
-    </div>
+    <div v-if="loading" class="empty">正在加载你的首页…</div>
 
-    <div v-else class="grid">
-      <ProductCard v-for="item in items" :key="item.item_id" :item="item" />
-    </div>
+    <template v-else>
+      <RouterLink v-if="hero" class="hero" :to="{ name: 'post', params: { postId: hero.post_id } }">
+        <div class="cover">
+          <img :src="heroCover" :alt="hero.title" />
+          <span :class="['badge', heroIsVideo ? 'live' : '']">
+            {{ heroIsVideo ? `视频 ${heroDuration}` : '买家安利' }}
+          </span>
+        </div>
+        <div class="hero-text">
+          <span class="hero-eyebrow">今日主推 · 买家安利</span>
+          <h2>{{ hero.title }}</h2>
+          <p>{{ hero.body }}</p>
+          <div class="meta">
+            <span>{{ hero.author_name }}</span>
+            <span class="dot" />
+            <span>♡ {{ hero.likes }}</span>
+            <span class="dot" />
+            <span v-if="hero.product">{{ hero.product.title }} ¥{{ hero.product.price.toFixed(0) }}</span>
+          </div>
+          <div style="margin-top: auto">
+            <span class="btn">看同款</span>
+          </div>
+        </div>
+      </RouterLink>
 
-    <div v-if="items.length > 0" class="actions">
-      <button v-if="more" class="primary" type="button" :disabled="loading" @click="load(false)">
-        {{ loading ? '加载中…' : '加载更多' }}
-      </button>
-      <span v-else-if="partial" class="muted">已到最后一页（候选商品用完了）</span>
-      <span v-else class="muted">没有更多了</span>
-    </div>
+      <section class="section">
+        <div class="section-head">
+          <h2>为你推荐</h2>
+          <span>综合行为、搜索与停留时长</span>
+        </div>
+        <div v-if="feed.items.length" class="grid">
+          <ProductCard v-for="item in feed.items" :key="item.item_id" :item="item" />
+        </div>
+        <div v-else class="empty">暂时没有推荐，先去逛逛吧</div>
+      </section>
+
+      <section v-if="freshPosts.length" class="section">
+        <div class="section-head">
+          <h2>更多安利</h2>
+          <RouterLink to="/discover" class="link">去发现 →</RouterLink>
+        </div>
+        <div class="masonry">
+          <PostCard v-for="post in freshPosts" :key="post.post_id" :post="post" />
+        </div>
+      </section>
+    </template>
   </section>
 </template>

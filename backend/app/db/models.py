@@ -57,3 +57,51 @@ class Event(Base):
         Index("ix_events_user_item_type", "user_id", "item_id", "type"),
         Index("ix_events_time", "event_time"),
     )
+
+
+class Post(Base):
+    """买家安利内容：图文或短视频（短视频只有封面 + 时长，播放依赖本地文件）。"""
+
+    __tablename__ = "posts"
+
+    post_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    author_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False,
+                                           index=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    media_type: Mapped[str] = mapped_column(String(12), nullable=False, default="image")
+    video_seconds: Mapped[int] = mapped_column(default=0)
+    product_id: Mapped[str] = mapped_column(ForeignKey("items.item_id"), nullable=False,
+                                            index=True)
+    likes: Mapped[int] = mapped_column(default=0)
+    tags: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow,
+                                                 index=True)
+
+
+class Search(Base):
+    """用户搜索词（关键词偏好的来源）。"""
+
+    __tablename__ = "searches"
+
+    search_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False,
+                                         index=True)
+    keyword: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow,
+                                                 index=True)
+
+
+class Dwell(Base):
+    """用户在安利帖子上的停留时长（秒）。"""
+
+    __tablename__ = "dwells"
+
+    dwell_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False,
+                                         index=True)
+    post_id: Mapped[str] = mapped_column(ForeignKey("posts.post_id"), nullable=False,
+                                         index=True)
+    seconds: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow,
+                                                 index=True)
