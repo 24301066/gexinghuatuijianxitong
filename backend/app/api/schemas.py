@@ -43,6 +43,7 @@ class ItemOut(BaseModel):
     tags: list[str]
     description: str
     cover_url: str = ""
+    images: list[str] = []
 
 
 class ItemPageOut(BaseModel):
