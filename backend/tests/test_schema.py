@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.db.models import Dwell, Event, Item, Post, Search, User
+from app.db.models import (Dwell, Event, Item, Merchant, Post, Review, Search, User)
 from app.db.seed import seed_demo
 from app.db.session import init_db, make_engine, make_session_factory
 
@@ -42,7 +42,7 @@ def test_idempotency_key_is_unique(session):
 
 def test_seed_is_deterministic(session):
     first = seed_demo(session, seed=7, users=5, items=10, events=40)
-    for table in (Dwell, Search, Post, Event, Item, User):
+    for table in (Review, Merchant, Dwell, Search, Post, Event, Item, User):
         session.query(table).delete()
     session.commit()
     second = seed_demo(session, seed=7, users=5, items=10, events=40)
