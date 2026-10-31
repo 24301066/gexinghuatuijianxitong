@@ -1,5 +1,11 @@
 # 个性化推荐系统（电商）
 
+[![CI](https://github.com/24301066/gexinghuatuijianxitong/actions/workflows/python-app.yml/badge.svg?branch=main)](https://github.com/24301066/gexinghuatuijianxitong/actions/workflows/python-app.yml)
+![python](https://img.shields.io/badge/python-3.12-blue)
+![node](https://img.shields.io/badge/node-20-green)
+![version](https://img.shields.io/badge/version-0.1.0-informational)
+![platform](https://img.shields.io/badge/platform-Windows%20desktop-4f46e5)
+
 一个可离线运行的电商个性化推荐演示系统：**Windows 桌面应用**为主交付形态，同一份代码也能用浏览器开发模式跑。
 
 - 后端：Python 3.12 + FastAPI + SQLAlchemy + SQLite
