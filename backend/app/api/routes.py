@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+from pathlib import Path
 import hashlib
 import json
 import os
@@ -311,6 +313,8 @@ def post_video(post_id: str, runtime: Runtime = Depends(get_runtime)):
 @router.get("/media/{kind}/{media_id}", tags=["ugc"])
 def media(kind: str, media_id: str, db: Session = Depends(get_db),
           runtime: Runtime = Depends(get_runtime)):
+    if kind == "avatar":
+        return get_avatar(media_id, db, runtime)
     if kind not in {"product", "post"}:
         raise ApiError(404, f"未知媒体类型 {kind}")
     path, mime = _find_asset(runtime, kind, media_id, IMAGE_TYPES)
@@ -1044,3 +1048,56 @@ def author_reviews(author_id: str, db: Session = Depends(get_db)) -> list[schema
                                 item_title=titles.get(row.item_id, row.item_id),
                                 rating=row.rating, content=row.content,
                                 created_at=row.created_at) for row in rows]
+
+
+AVATAR_TYPES = {"png": "image/png", "jpeg": "image/jpeg", "jpg": "image/jpeg",
+                "webp": "image/webp"}
+
+
+def _avatar_dir(runtime: Runtime) -> Path:
+    folder = runtime.settings.data_dir / "media" / "avatars"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def _avatar_url(user_id: str) -> str:
+    return f"/api/v1/media/avatar/{user_id}"
+
+
+@router.get("/media/avatar/{user_id}", tags=["auth"])
+def get_avatar(user_id: str, db: Session = Depends(get_db),
+               runtime: Runtime = Depends(get_runtime)):
+    folder = _avatar_dir(runtime)
+    for extension, mime in AVATAR_TYPES.items():
+        candidate = folder / f"{user_id}.{extension}"
+        if candidate.is_file():
+            return FileResponse(candidate, media_type=mime,
+                                headers={"Cache-Control": "no-cache"})
+    user = db.get(User, user_id)
+    name = user.username if user is not None else "U"
+    return Response(content=covers.avatar_cover(name, 160), media_type="image/svg+xml",
+                    headers={"Cache-Control": "no-cache"})
+
+
+@router.post("/me/avatar", response_model=schemas.AvatarOut, tags=["auth"])
+def upload_avatar(payload: schemas.AvatarIn, runtime: Runtime = Depends(get_runtime),
+                  user: User = Depends(current_user)) -> schemas.AvatarOut:
+    data = payload.data.strip()
+    if not data.startswith("data:image/"):
+        raise ApiError(422, "只支持图片文件")
+    header, _, encoded = data.partition(",")
+    subtype = header[11:].split(";")[0].lower()
+    if subtype not in AVATAR_TYPES:
+        raise ApiError(422, "只支持 png / jpeg / webp 格式")
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except Exception:  # noqa: BLE001
+        raise ApiError(422, "图片数据无效")
+    if len(raw) > 2 * 1024 * 1024:
+        raise ApiError(413, "图片不能超过 2MB")
+    folder = _avatar_dir(runtime)
+    for extension in AVATAR_TYPES:
+        (folder / f"{user.user_id}.{extension}").unlink(missing_ok=True)
+    target = folder / f"{user.user_id}.{'jpg' if subtype == 'jpeg' else subtype}"
+    target.write_bytes(raw)
+    return schemas.AvatarOut(avatar_url=_avatar_url(user.user_id))

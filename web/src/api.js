@@ -130,3 +130,6 @@ api.reviewItem = (itemId, rating, content) =>
 api.myReviews = () => request('/me/reviews')
 
 api.authorReviews = (authorId) => request(`/authors/${encodeURIComponent(authorId)}/reviews`, { auth: false })
+
+api.uploadAvatar = (dataUrl) => request('/me/avatar', { method: 'POST', body: { data: dataUrl } })
+api.avatarUrl = (userId) => `${BASE}/api/v1/media/avatar/${encodeURIComponent(userId)}`

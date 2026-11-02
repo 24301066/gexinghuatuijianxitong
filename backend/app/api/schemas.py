@@ -27,6 +27,7 @@ class UserOut(BaseModel):
     user_id: str
     username: str
     role: str
+    avatar_url: str = ""
 
 
 class TokenOut(BaseModel):
@@ -357,3 +358,11 @@ class MyReviewOut(BaseModel):
     rating: int
     content: str
     created_at: datetime
+
+
+class AvatarIn(BaseModel):
+    data: str = Field(min_length=32, max_length=8_000_000)
+
+
+class AvatarOut(BaseModel):
+    avatar_url: str

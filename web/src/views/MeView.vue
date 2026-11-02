@@ -15,6 +15,9 @@ const error = ref('')
 const insights = ref(null)
 const myReviews = ref([])
 const tab = ref('dwell')
+const fileInput = ref(null)
+const avatarSrc = ref(session.user?.user_id ? api.avatarUrl(session.user.user_id) : '')
+const avatarVersion = ref(Date.now())
 
 const TABS = [
   { key: 'dwell', label: '停留过的安利' },
@@ -59,6 +62,36 @@ function goSearch(word) {
   router.push({ name: 'search', query: { q: word } })
 }
 
+function pickAvatar() {
+  fileInput.value?.click()
+}
+
+async function onAvatarChange(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    toast.push('请选择图片文件', 'error')
+    return
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    toast.push('图片不能超过 2MB', 'error')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = async () => {
+    try {
+      await api.uploadAvatar(String(reader.result))
+      avatarVersion.value = Date.now()
+      avatarSrc.value = `${api.avatarUrl(session.user.user_id)}?v=${avatarVersion.value}`
+      toast.push('头像已更新')
+    } catch (error) {
+      toast.push(error.message, 'error')
+    }
+  }
+  reader.readAsDataURL(file)
+}
+
 onMounted(load)
 </script>
 
@@ -67,9 +100,12 @@ onMounted(load)
     <div v-if="error" class="notice">{{ error }}</div>
 
     <div class="section-card" style="display: flex; align-items: center; gap: 16px">
-      <RouterLink :to="{ name: 'profile' }">
-        <span class="avatar avatar-lg">{{ (session.user?.username || 'U').slice(0, 1).toUpperCase() }}</span>
-      </RouterLink>
+      <button class="avatar avatar-lg avatar-btn" type="button" title="点击更换头像" @click="pickAvatar">
+        <img v-if="avatarSrc" :src="avatarSrc" alt="头像" />
+        <span v-else>{{ (session.user?.username || 'U').slice(0, 1).toUpperCase() }}</span>
+        <span class="avatar-tip">换</span>
+      </button>
+      <input ref="fileInput" type="file" accept="image/*" hidden @change="onAvatarChange" />
       <div style="flex: 1">
         <RouterLink :to="{ name: 'profile' }" style="font-weight: 800; font-size: 19px">
           {{ shop.profile.nickname }}

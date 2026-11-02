@@ -189,6 +189,34 @@
         "title": "AuthorOut",
         "type": "object"
       },
+      "AvatarIn": {
+        "properties": {
+          "data": {
+            "maxLength": 8000000,
+            "minLength": 32,
+            "title": "Data",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AvatarIn",
+        "type": "object"
+      },
+      "AvatarOut": {
+        "properties": {
+          "avatar_url": {
+            "title": "Avatar Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "avatar_url"
+        ],
+        "title": "AvatarOut",
+        "type": "object"
+      },
       "BindPhoneIn": {
         "properties": {
           "bind_token": {
@@ -1637,6 +1665,11 @@
       },
       "UserOut": {
         "properties": {
+          "avatar_url": {
+            "default": "",
+            "title": "Avatar Url",
+            "type": "string"
+          },
           "role": {
             "title": "Role",
             "type": "string"
@@ -3097,6 +3130,47 @@
         ]
       }
     },
+    "/api/v1/me/avatar": {
+      "post": {
+        "operationId": "upload_avatar_api_v1_me_avatar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvatarIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvatarOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Avatar",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/me/insights": {
       "get": {
         "operationId": "my_insights_api_v1_me_insights_get",
@@ -3161,6 +3235,46 @@
         "summary": "My Reviews",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/api/v1/media/avatar/{user_id}": {
+      "get": {
+        "operationId": "get_avatar_api_v1_media_avatar__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Avatar",
+        "tags": [
+          "auth"
         ]
       }
     },
