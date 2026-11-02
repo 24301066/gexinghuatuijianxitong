@@ -37,13 +37,16 @@ def _ensure_user_columns(engine: Engine) -> None:
         "phone_verified": "BOOLEAN DEFAULT 0",
         "provider": "VARCHAR(20) DEFAULT 'password'",
     }
+    review_wanted = {"media_json": "TEXT DEFAULT '[]'"}
     with engine.begin() as conn:
         existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)")}
-        if not existing:
-            return
         for column, ddl in wanted.items():
-            if column not in existing:
+            if existing and column not in existing:
                 conn.exec_driver_sql(f"ALTER TABLE users ADD COLUMN {column} {ddl}")
+        review_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(reviews)")}
+        for column, ddl in review_wanted.items():
+            if review_columns and column not in review_columns:
+                conn.exec_driver_sql(f"ALTER TABLE reviews ADD COLUMN {column} {ddl}")
 
 
 def sqlite_url(path: Path) -> str:

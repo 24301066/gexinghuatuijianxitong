@@ -195,4 +195,5 @@ class Review(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False)
     rating: Mapped[int] = mapped_column(default=5)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    media_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

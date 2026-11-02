@@ -323,6 +323,7 @@ class ReviewOut(BaseModel):
     user_name: str
     rating: int
     content: str
+    media: list[str] = []
     created_at: datetime
 
 
@@ -349,6 +350,7 @@ class ShopOut(BaseModel):
 class ReviewIn(BaseModel):
     rating: int = Field(ge=1, le=5)
     content: str = Field(default="", max_length=500)
+    media: list[str] = Field(default_factory=list, max_length=4)
 
 
 class MyReviewOut(BaseModel):
@@ -357,6 +359,7 @@ class MyReviewOut(BaseModel):
     item_title: str
     rating: int
     content: str
+    media: list[str] = []
     created_at: datetime
 
 

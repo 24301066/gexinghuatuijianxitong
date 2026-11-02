@@ -916,6 +916,46 @@ def _merchant_out(db: Session, merchant: Merchant) -> schemas.MerchantOut:
                                cover_url="")
 
 
+def _save_review_media(folder: Path, review_id: int, media: list[str]) -> list[str]:
+    allowed = {"png": "png", "jpeg": "jpg", "jpg": "jpg", "webp": "webp",
+               "mp4": "mp4", "webm": "webm"}
+    urls: list[str] = []
+    target_dir = folder / str(review_id)
+    for index, data_url in enumerate(media[:4]):
+        text = (data_url or "").strip()
+        if not text.startswith("data:image/") and not text.startswith("data:video/"):
+            continue
+        header, _, encoded = text.partition(",")
+        subtype = header.split("/")[1].split(";")[0].lower()
+        if subtype not in allowed:
+            continue
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except Exception:  # noqa: BLE001
+            continue
+        if len(raw) > 5 * 1024 * 1024:
+            continue
+        target_dir.mkdir(parents=True, exist_ok=True)
+        name = f"{index}.{allowed[subtype]}"
+        (target_dir / name).write_bytes(raw)
+        urls.append(f"/api/v1/media/reviews/{review_id}/{name}")
+    return urls
+
+
+@router.get("/media/reviews/{review_id}/{name}", tags=["catalog"])
+def review_media(review_id: int, name: str, runtime: Runtime = Depends(get_runtime)):
+    safe = Path(name).name
+    target = runtime.settings.data_dir / "media" / "reviews" / str(review_id) / safe
+    if not target.is_file():
+        raise ApiError(404, "评价附件不存在")
+    suffix = target.suffix.lower().lstrip(".")
+    mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+            "webp": "image/webp", "mp4": "video/mp4", "webm": "video/webm"}.get(
+        suffix, "application/octet-stream")
+    return FileResponse(target, media_type=mime,
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+
 def _reviews_for(db: Session, item_id: str, limit: int = 20) -> list[schemas.ReviewOut]:
     rows = db.scalars(select(Review).where(Review.item_id == item_id)
                       .order_by(Review.created_at.desc()).limit(limit)).all()
@@ -927,6 +967,7 @@ def _reviews_for(db: Session, item_id: str, limit: int = 20) -> list[schemas.Rev
     return [schemas.ReviewOut(review_id=row.review_id,
                               user_name=names.get(row.user_id, "匿名买家"),
                               rating=row.rating, content=row.content or "",
+                              media=json.loads(row.media_json or "[]"),
                               created_at=row.created_at) for row in rows]
 
 
@@ -995,15 +1036,20 @@ def post_gallery_image(post_id: str, index: int, db: Session = Depends(get_db),
 @router.post("/items/{item_id}/reviews", response_model=schemas.ReviewOut, status_code=201,
              tags=["catalog"])
 def create_review(item_id: str, payload: schemas.ReviewIn, db: Session = Depends(get_db),
-                  user: User = Depends(current_user)) -> schemas.ReviewOut:
+                  user: User = Depends(current_user),
+                  runtime: Runtime = Depends(get_runtime)) -> schemas.ReviewOut:
     if db.get(Item, item_id) is None:
         raise ApiError(404, f"商品 {item_id} 不存在")
+    runtime_dir = runtime.settings.data_dir / "media" / "reviews"
     row = Review(item_id=item_id, user_id=user.user_id, rating=payload.rating,
                  content=payload.content.strip(), created_at=utcnow())
     db.add(row)
     db.flush()
+    urls = _save_review_media(runtime_dir, row.review_id, payload.media)
+    row.media_json = json.dumps(urls, ensure_ascii=False)
+    db.flush()
     return schemas.ReviewOut(review_id=row.review_id, user_name=user.username,
-                             rating=row.rating, content=row.content,
+                             rating=row.rating, content=row.content, media=urls,
                              created_at=row.created_at)
 
 

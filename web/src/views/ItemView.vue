@@ -163,6 +163,13 @@ watch(() => route.params.itemId, () => {
                 </span>
               </div>
               <div>{{ review.content }}</div>
+              <div v-if="(review.media || []).length" class="review-media">
+                <template v-for="src in review.media" :key="src">
+                  <video v-if="src.endsWith('.mp4') || src.endsWith('.webm')"
+                         :src="mediaUrl(src)" controls />
+                  <img v-else :src="mediaUrl(src)" alt="评价图片" />
+                </template>
+              </div>
               <div class="meta">{{ new Date(review.created_at).toLocaleDateString('zh-CN') }}</div>
             </div>
           </div>

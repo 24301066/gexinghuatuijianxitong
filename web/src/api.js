@@ -125,8 +125,8 @@ api.shop = (merchantId) => request(`/merchants/${encodeURIComponent(merchantId)}
 api.merchants = () => request('/merchants', { auth: false })
 
 
-api.reviewItem = (itemId, rating, content) =>
-  request(`/items/${encodeURIComponent(itemId)}/reviews`, { method: 'POST', body: { rating, content } })
+api.reviewItem = (itemId, rating, content, media = []) =>
+  request(`/items/${encodeURIComponent(itemId)}/reviews`, { method: 'POST', body: { rating, content, media } })
 api.myReviews = () => request('/me/reviews')
 
 api.authorReviews = (authorId) => request(`/authors/${encodeURIComponent(authorId)}/reviews`, { auth: false })

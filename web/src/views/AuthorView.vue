@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { api } from '../api'
+import { api, mediaUrl } from '../api'
 import PostCard from '../components/PostCard.vue'
 
 const route = useRoute()
@@ -84,6 +84,13 @@ watch(() => route.params.authorId, () => {
                 <span v-for="n in 5" :key="n" :class="['star', row.rating >= n ? 'full' : 'empty']">★</span>
               </div>
               <div>{{ row.content || '（未填写文字）' }}</div>
+              <div v-if="(row.media || []).length" class="review-media">
+                <template v-for="src in row.media" :key="src">
+                  <video v-if="src.endsWith('.mp4') || src.endsWith('.webm')"
+                         :src="mediaUrl(src)" controls />
+                  <img v-else :src="mediaUrl(src)" alt="评价图片" />
+                </template>
+              </div>
               <div class="meta">{{ new Date(row.created_at).toLocaleDateString('zh-CN') }}</div>
             </div>
           </div>

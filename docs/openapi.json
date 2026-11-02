@@ -900,6 +900,14 @@
             "title": "Item Title",
             "type": "string"
           },
+          "media": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Media",
+            "type": "array"
+          },
           "rating": {
             "title": "Rating",
             "type": "integer"
@@ -1407,6 +1415,14 @@
             "title": "Content",
             "type": "string"
           },
+          "media": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Media",
+            "type": "array"
+          },
           "rating": {
             "maximum": 5.0,
             "minimum": 1.0,
@@ -1430,6 +1446,14 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "media": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Media",
+            "type": "array"
           },
           "rating": {
             "title": "Rating",
@@ -3411,6 +3435,55 @@
           }
         },
         "summary": "Product Gallery Image",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/media/reviews/{review_id}/{name}": {
+      "get": {
+        "operationId": "review_media_api_v1_media_reviews__review_id___name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "title": "Review Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Media",
         "tags": [
           "catalog"
         ]

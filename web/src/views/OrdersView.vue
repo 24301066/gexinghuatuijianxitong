@@ -55,6 +55,7 @@ const aftersale = (order) => run(order, 'aftersale', '已申请售后，客服�
 
 const reviewing = ref(null)
 const draft = ref({ rating: 5, content: '' })
+const attachments = ref([])
 
 function openReview(order) {
   reviewing.value = order
@@ -65,7 +66,7 @@ async function submitReview() {
   if (!reviewing.value) return
   const first = reviewing.value.items[0]
   try {
-    await api.reviewItem(first.item_id, draft.value.rating, draft.value.content)
+    await api.reviewItem(first.item_id, draft.value.rating, draft.value.content, attachments.value)
     await run(reviewing.value, 'review', '评价已提交')
     reviewing.value = null
   } catch (err) {
@@ -74,6 +75,21 @@ async function submitReview() {
 }
 
 onMounted(() => { shop.loadOrders('all') })
+
+function pickMedia(event) {
+  const files = [...(event.target.files || [])].slice(0, 4)
+  event.target.value = ''
+  attachments.value = []
+  files.forEach((file) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.push('单个附件不能超过 5MB', 'error')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => { attachments.value = [...attachments.value, String(reader.result)] }
+    reader.readAsDataURL(file)
+  })
+}
 </script>
 
 <template>
@@ -135,6 +151,16 @@ onMounted(() => { shop.loadOrders('all') })
       </div>
       <textarea v-model="draft.content" rows="3" placeholder="说说使用感受…"
                 style="width: 100%; border-radius: 12px; border: 1px solid var(--line); padding: 10px"></textarea>
+      <div class="review-pick">
+        <label class="btn ghost small" style="cursor: pointer">
+          ＋ 添加图片 / 视频
+          <input type="file" accept="image/*,video/mp4,video/webm" multiple hidden @change="pickMedia" />
+        </label>
+        <span v-for="(src, index) in attachments" :key="index" class="review-thumb">
+          <img v-if="src.startsWith('data:image')" :src="src" alt="" />
+          <video v-else :src="src" muted />
+        </span>
+      </div>
       <button class="btn" type="button" style="margin-top: 10px" @click="submitReview">提交评价</button>
     </div>
   </section>

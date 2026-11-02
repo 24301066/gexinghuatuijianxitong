@@ -100,12 +100,12 @@ onMounted(load)
     <div v-if="error" class="notice">{{ error }}</div>
 
     <div class="section-card" style="display: flex; align-items: center; gap: 16px">
-      <button class="avatar avatar-lg avatar-btn" type="button" title="点击更换头像" @click="pickAvatar">
+      <label class="avatar avatar-lg avatar-btn" title="点击更换头像">
         <img v-if="avatarSrc" :src="avatarSrc" alt="头像" />
         <span v-else>{{ (session.user?.username || 'U').slice(0, 1).toUpperCase() }}</span>
         <span class="avatar-tip">换</span>
-      </button>
-      <input ref="fileInput" type="file" accept="image/*" hidden @change="onAvatarChange" />
+        <input class="avatar-input" type="file" accept="image/*" @change="onAvatarChange" />
+      </label>
       <div style="flex: 1">
         <RouterLink :to="{ name: 'profile' }" style="font-weight: 800; font-size: 19px">
           {{ shop.profile.nickname }}
@@ -230,6 +230,13 @@ onMounted(load)
                 <span v-for="n in 5" :key="n" :class="['star', row.rating >= n ? 'full' : 'empty']">★</span>
               </div>
               <div>{{ row.content }}</div>
+              <div v-if="(row.media || []).length" class="review-media">
+                <template v-for="src in row.media" :key="src">
+                  <video v-if="src.endsWith('.mp4') || src.endsWith('.webm')"
+                         :src="mediaUrl(src)" controls />
+                  <img v-else :src="mediaUrl(src)" alt="评价图片" />
+                </template>
+              </div>
               <div class="meta">{{ new Date(row.created_at).toLocaleDateString('zh-CN') }}</div>
             </div>
           </div>

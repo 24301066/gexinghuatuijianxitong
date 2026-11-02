@@ -608,3 +608,12 @@ button, input, select { font: inherit; color: inherit; }
   position: absolute; right: 0; bottom: 0; width: 20px; height: 20px; border-radius: 50%;
   background: var(--accent); color: #fff; font-size: 11px; line-height: 20px; text-align: center;
 }
+
+.avatar-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.review-media { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.review-media img, .review-media video {
+  width: 96px; height: 96px; object-fit: cover; border-radius: 10px; background: #f2ece4;
+}
+.review-pick { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.review-thumb { position: relative; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; }
+.review-thumb img, .review-thumb video { width: 100%; height: 100%; object-fit: cover; }
