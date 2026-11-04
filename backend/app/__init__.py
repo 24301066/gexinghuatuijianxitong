@@ -32,8 +32,9 @@ def _mount_frontend(app: FastAPI, dist: Path) -> None:
                                          "message": "前端资源未构建，先执行 web 的 npm run build"})
         candidate = dist / full_path
         if full_path and candidate.is_file() and candidate.resolve().is_relative_to(dist.resolve()):
-            return FileResponse(candidate)
-        return FileResponse(index)
+            return FileResponse(candidate, headers={"Cache-Control": "no-cache"})
+        # index.html 必须每次回源，否则 WebView2 会拿缓存里的旧入口页（旧 JS 文件名）
+        return FileResponse(index, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
