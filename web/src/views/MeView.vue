@@ -18,6 +18,7 @@ const tab = ref('dwell')
 const fileInput = ref(null)
 const avatarSrc = ref(session.user?.user_id ? api.avatarUrl(session.user.user_id) : '')
 const avatarVersion = ref(Date.now())
+const displayName = computed(() => shop.profile.nickname || session.user?.username || '用户')
 
 const TABS = [
   { key: 'dwell', label: '停留过的安利' },
@@ -108,7 +109,7 @@ onMounted(load)
       </label>
       <div style="flex: 1">
         <RouterLink :to="{ name: 'profile' }" style="font-weight: 800; font-size: 19px">
-          {{ shop.profile.nickname }}
+          {{ displayName }}
         </RouterLink>
         <div class="meta">
           <span>Lv.{{ shop.profile.level }}</span>

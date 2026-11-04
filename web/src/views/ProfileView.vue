@@ -1,13 +1,16 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useShopStore } from '../stores/shop'
+import { useSessionStore } from '../stores'
 import { useToastStore } from '../stores'
 
 const shop = useShopStore()
+const session = useSessionStore()
 const toast = useToastStore()
 
 const profile = reactive({ ...shop.profile })
 const sizes = reactive({ ...shop.profile.sizes })
+if (!profile.nickname) profile.nickname = session.user?.username || ''
 const editingSizes = ref(false)
 
 function save() {
