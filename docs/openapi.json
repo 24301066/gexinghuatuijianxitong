@@ -928,9 +928,36 @@
         "title": "MyReviewOut",
         "type": "object"
       },
+      "OAuthIn": {
+        "properties": {
+          "open_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Id"
+          },
+          "provider": {
+            "pattern": "^(wechat|qq)$",
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "title": "OAuthIn",
+        "type": "object"
+      },
       "OAuthOut": {
         "properties": {
           "bind_token": {
+            "default": "",
             "title": "Bind Token",
             "type": "string"
           },
@@ -943,14 +970,44 @@
             "title": "Nickname",
             "type": "string"
           },
+          "open_id": {
+            "default": "",
+            "title": "Open Id",
+            "type": "string"
+          },
           "provider": {
             "title": "Provider",
             "type": "string"
+          },
+          "registered": {
+            "default": false,
+            "title": "Registered",
+            "type": "boolean"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "provider",
-          "bind_token",
           "nickname"
         ],
         "title": "OAuthOut",
@@ -1665,6 +1722,47 @@
         "title": "SmsSendOut",
         "type": "object"
       },
+      "SocialBindOut": {
+        "properties": {
+          "bound": {
+            "default": true,
+            "title": "Bound",
+            "type": "boolean"
+          },
+          "open_id": {
+            "title": "Open Id",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "open_id"
+        ],
+        "title": "SocialBindOut",
+        "type": "object"
+      },
+      "SocialIn": {
+        "properties": {
+          "open_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Id"
+          }
+        },
+        "title": "SocialIn",
+        "type": "object"
+      },
       "TokenOut": {
         "properties": {
           "expires_in": {
@@ -2168,6 +2266,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SocialIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -3259,6 +3374,47 @@
         "summary": "My Reviews",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/api/v1/me/social/bind": {
+      "post": {
+        "operationId": "bind_social_api_v1_me_social_bind_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocialBindOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bind Social",
+        "tags": [
+          "auth"
         ]
       }
     },

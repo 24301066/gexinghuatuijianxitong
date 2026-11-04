@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from .. import __version__
 from ..core.errors import ApiError, request_id_of
 from ..core.security import create_token, decode_token, hash_password, verify_password
-from ..db.models import (Address, CartItem, Dwell, Event, Favorite, Item, Merchant, Order, Post, Review, Search, User, VerificationCode, utcnow)
+from ..db.models import (Address, CartItem, Dwell, Event, Favorite, Item, Merchant, Order, Post, Review, Search, SocialBinding, User, VerificationCode, utcnow)
 from ..media import covers
 from ..runtime import Runtime
 from . import schemas
@@ -867,14 +867,31 @@ def login_with_phone(payload: schemas.PhoneLoginIn, db: Session = Depends(get_db
 
 
 @router.post("/auth/oauth/{provider}", response_model=schemas.OAuthOut, tags=["auth"])
-def oauth_login(provider: str, runtime: Runtime = Depends(get_runtime)) -> schemas.OAuthOut:
+def oauth_login(provider: str, payload: schemas.SocialIn | None = None,
+                db: Session = Depends(get_db),
+                runtime: Runtime = Depends(get_runtime)) -> schemas.OAuthOut:
     if provider not in {"wechat", "qq"}:
         raise ApiError(422, "只支持 wechat / qq")
     nickname = "微信用户" if provider == "wechat" else "QQ 用户"
+    open_id = (payload.open_id if payload and payload.open_id else f"mock_{uuid4().hex[:12]}")
+    binding = db.scalar(select(SocialBinding).where(SocialBinding.provider == provider,
+                                                   SocialBinding.open_id == open_id))
+    if binding is not None:
+        user = db.get(User, binding.user_id)
+        if user is not None:
+            token = create_token(runtime.settings.secret,
+                                 {"sub": user.user_id, "role": user.role})
+            return schemas.OAuthOut(
+                provider=provider, nickname=user.username, needs_phone=False,
+                registered=True, open_id=open_id, token=token,
+                user=schemas.UserOut(user_id=user.user_id, username=user.username,
+                                     role=user.role))
     bind_token = create_token(runtime.settings.secret,
-                              {"sub": f"oauth:{provider}:{uuid4().hex[:10]}",
-                               "provider": provider, "purpose": "bind"}, ttl=600)
-    return schemas.OAuthOut(provider=provider, bind_token=bind_token, nickname=nickname)
+                              {"sub": f"oauth:{provider}:{open_id}",
+                               "provider": provider, "open_id": open_id,
+                               "purpose": "bind"}, ttl=600)
+    return schemas.OAuthOut(provider=provider, bind_token=bind_token, nickname=nickname,
+                            needs_phone=True, registered=False, open_id=open_id)
 
 
 @router.post("/auth/bind-phone", response_model=schemas.TokenOut, status_code=201, tags=["auth"])
@@ -888,6 +905,18 @@ def bind_phone(payload: schemas.BindPhoneIn, db: Session = Depends(get_db),
         raise ApiError(401, "绑定会话无效")
     _consume_sms_code(db, payload.phone, payload.code, "bind")
     provider = str(claims.get("provider") or "wechat")
+    open_id = str(claims.get("open_id") or "")
+    if not open_id:
+        raise ApiError(401, "授权信息不完整，请重新授权")
+    phone_binding = db.scalar(select(SocialBinding).where(
+        SocialBinding.phone == payload.phone))
+    if phone_binding is not None and (phone_binding.provider != provider
+                                      or phone_binding.open_id != open_id):
+        raise ApiError(409, "该手机号已绑定其他社交账号，请先解绑")
+    existing = db.scalar(select(SocialBinding).where(
+        SocialBinding.provider == provider, SocialBinding.open_id == open_id))
+    if existing is not None and existing.phone != payload.phone:
+        raise ApiError(409, "该社交账号已绑定其他手机号")
     user = db.scalar(select(User).where(User.phone == payload.phone))
     if user is None:
         username = payload.username or f"{provider}_{uuid4().hex[:6]}"
@@ -902,6 +931,10 @@ def bind_phone(payload: schemas.BindPhoneIn, db: Session = Depends(get_db),
     else:
         user.phone_verified = True
         user.provider = provider
+        db.flush()
+    if existing is None:
+        db.add(SocialBinding(user_id=user.user_id, provider=provider, open_id=open_id,
+                             phone=payload.phone))
         db.flush()
     return _token_for(runtime, user)
 
@@ -1147,3 +1180,24 @@ def upload_avatar(payload: schemas.AvatarIn, runtime: Runtime = Depends(get_runt
     target = folder / f"{user.user_id}.{'jpg' if subtype == 'jpeg' else subtype}"
     target.write_bytes(raw)
     return schemas.AvatarOut(avatar_url=_avatar_url(user.user_id))
+
+
+@router.post("/me/social/bind", response_model=schemas.SocialBindOut, tags=["auth"])
+def bind_social(payload: schemas.OAuthIn, db: Session = Depends(get_db),
+                user: User = Depends(current_user)) -> schemas.SocialBindOut:
+    if not user.phone:
+        raise ApiError(422, "请先绑定手机号")
+    open_id = payload.open_id or f"mock_{uuid4().hex[:12]}"
+    by_phone = db.scalar(select(SocialBinding).where(SocialBinding.phone == user.phone))
+    if by_phone is not None and (by_phone.provider != payload.provider
+                                 or by_phone.open_id != open_id):
+        raise ApiError(409, "当前手机号已绑定其他社交账号")
+    by_open = db.scalar(select(SocialBinding).where(
+        SocialBinding.provider == payload.provider, SocialBinding.open_id == open_id))
+    if by_open is not None and by_open.user_id != user.user_id:
+        raise ApiError(409, "该社交账号已绑定其他账号")
+    if by_phone is None:
+        db.add(SocialBinding(user_id=user.user_id, provider=payload.provider,
+                             open_id=open_id, phone=user.phone))
+        db.flush()
+    return schemas.SocialBindOut(provider=payload.provider, open_id=open_id)

@@ -197,3 +197,19 @@ class Review(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     media_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+
+class SocialBinding(Base):
+    """手机号与微信/QQ 的一对一绑定：手机号唯一，(provider, open_id) 唯一。"""
+
+    __tablename__ = "social_bindings"
+
+    binding_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False,
+                                         index=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    open_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    phone: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+    __table_args__ = (Index("ix_social_provider_open", "provider", "open_id", unique=True),)

@@ -133,3 +133,5 @@ api.authorReviews = (authorId) => request(`/authors/${encodeURIComponent(authorI
 
 api.uploadAvatar = (dataUrl) => request('/me/avatar', { method: 'POST', body: { data: dataUrl } })
 api.avatarUrl = (userId) => `${BASE}/api/v1/media/avatar/${encodeURIComponent(userId)}`
+
+api.bindSocial = (provider, openId) => request('/me/social/bind', { method: 'POST', body: { provider, open_id: openId } })

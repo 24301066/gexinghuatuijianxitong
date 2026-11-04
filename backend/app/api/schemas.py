@@ -289,15 +289,24 @@ class PhoneLoginIn(BaseModel):
     code: str = Field(min_length=4, max_length=8)
 
 
+class SocialIn(BaseModel):
+    open_id: str | None = Field(default=None, max_length=80)
+
+
 class OAuthIn(BaseModel):
     provider: str = Field(pattern="^(wechat|qq)$")
+    open_id: str | None = Field(default=None, max_length=80)
 
 
 class OAuthOut(BaseModel):
     provider: str
-    bind_token: str
+    bind_token: str = ""
     nickname: str
     needs_phone: bool = True
+    registered: bool = False
+    open_id: str = ""
+    token: str | None = None
+    user: UserOut | None = None
 
 
 class BindPhoneIn(BaseModel):
@@ -369,3 +378,9 @@ class AvatarIn(BaseModel):
 
 class AvatarOut(BaseModel):
     avatar_url: str
+
+
+class SocialBindOut(BaseModel):
+    provider: str
+    open_id: str
+    bound: bool = True
