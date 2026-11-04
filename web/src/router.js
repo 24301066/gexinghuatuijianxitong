@@ -11,6 +11,8 @@ import AuthorView from './views/AuthorView.vue'
 import CartView from './views/CartView.vue'
 import CheckoutView from './views/CheckoutView.vue'
 import OrdersView from './views/OrdersView.vue'
+import OrderDetailView from './views/OrderDetailView.vue'
+import LogisticsView from './views/LogisticsView.vue'
 import AddressView from './views/AddressView.vue'
 import SettingsView from './views/SettingsView.vue'
 import WalletView from './views/WalletView.vue'
@@ -29,6 +31,8 @@ const router = createRouter({
     { path: '/me/profile', name: 'profile', component: ProfileView },
     { path: '/me/wallet', name: 'wallet', component: WalletView },
     { path: '/me/orders', name: 'orders', component: OrdersView },
+    { path: '/me/orders/:id', name: 'order-detail', component: OrderDetailView },
+    { path: '/me/orders/:id/logistics', name: 'logistics', component: LogisticsView },
     { path: '/me/address', name: 'address', component: AddressView },
     { path: '/me/settings', name: 'settings', component: SettingsView },
     { path: '/messages', name: 'messages', component: MessagesView },

@@ -3,7 +3,6 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { mediaUrl } from '../api'
 import { useShopStore } from '../stores/shop'
-import { api } from '../api'
 import { useToastStore } from '../stores'
 
 const shop = useShopStore()
@@ -13,19 +12,20 @@ const router = useRouter()
 
 const TABS = [
   { key: 'all', label: '全部' },
-  { key: 'pending_payment', label: '待付款' },
+  { key: 'pending_payment', label: '待支付' },
   { key: 'pending_shipment', label: '待发货' },
-  { key: 'pending_receipt', label: '待收货' },
-  { key: 'pending_review', label: '待评价' },
-  { key: 'aftersale', label: '退款/售后' }
+  { key: 'pending_receipt', label: '待收货/使用' },
+  { key: 'pending_review', label: '评价' },
+  { key: 'aftersale', label: '售后' }
 ]
 
 const STATUS_TEXT = {
-  pending_payment: '待付款',
+  pending_payment: '待支付',
   pending_shipment: '待发货',
-  pending_receipt: '待收货',
+  pending_receipt: '运输中',
   pending_review: '待评价',
   completed: '已完成',
+  cancelled: '已取消',
   aftersale: '售后中'
 }
 
@@ -37,6 +37,11 @@ watch(() => route.query.status, (value) => { active.value = String(value || 'all
 function pick(key) {
   active.value = key
   router.replace({ name: 'orders', query: key === 'all' ? {} : { status: key } })
+}
+
+function shopName(order) {
+  const category = order.items?.[0]?.category || ''
+  return category ? `${category}官方旗舰店` : '种草集自营'
 }
 
 async function run(order, action, message) {
@@ -53,48 +58,20 @@ const cancel = (order) => run(order, 'cancel', '订单已取消')
 const receive = (order) => run(order, 'receive', '已确认收货，记得评价')
 const aftersale = (order) => run(order, 'aftersale', '已申请售后，客服会联系你')
 
-const reviewing = ref(null)
-const draft = ref({ rating: 5, content: '' })
-const attachments = ref([])
-
-function openReview(order) {
-  reviewing.value = order
-  draft.value = { rating: 5, content: '' }
+function goDetail(order) {
+  router.push({ name: 'order-detail', params: { id: order.id } })
 }
 
-async function submitReview() {
-  if (!reviewing.value) return
-  const first = reviewing.value.items[0]
-  try {
-    await api.reviewItem(first.item_id, draft.value.rating, draft.value.content, attachments.value)
-    await run(reviewing.value, 'review', '评价已提交')
-    reviewing.value = null
-  } catch (err) {
-    toast.push(err.message, 'error')
-  }
+function goLogistics(order) {
+  router.push({ name: 'logistics', params: { id: order.id } })
 }
 
 onMounted(() => { shop.loadOrders('all') })
-
-function pickMedia(event) {
-  const files = [...(event.target.files || [])].slice(0, 4)
-  event.target.value = ''
-  attachments.value = []
-  files.forEach((file) => {
-    if (file.size > 5 * 1024 * 1024) {
-      toast.push('单个附件不能超过 5MB', 'error')
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => { attachments.value = [...attachments.value, String(reader.result)] }
-    reader.readAsDataURL(file)
-  })
-}
 </script>
 
 <template>
   <section>
-    <div class="page-head"><h1>我的订单</h1><p>付款、收货、评价都能在这里处理。</p></div>
+    <div class="page-head"><h1>我的订单</h1><p>支付、物流、售后都可以在这里处理。</p></div>
 
     <div class="tabs">
       <button v-for="tab in TABS" :key="tab.key" type="button"
@@ -106,62 +83,39 @@ function pickMedia(event) {
     <div v-if="!orders.length" class="empty">这个分类还没有订单</div>
 
     <div v-for="order in orders" :key="order.id" class="order-card">
-      <div class="meta" style="justify-content: space-between; margin-bottom: 10px">
-        <span>订单号 {{ order.id }} · {{ new Date(order.created_at).toLocaleString('zh-CN') }}</span>
-        <span class="status-pill">{{ STATUS_TEXT[order.status] || order.status }}</span>
+      <div class="order-shop">
+        <span>{{ shopName(order) }}</span>
+        <span class="tag">官方</span>
+        <span class="order-status">{{ STATUS_TEXT[order.status] || order.status }}</span>
       </div>
 
-      <div class="row-list">
-        <div v-for="row in order.items" :key="row.item_id" class="row-item" style="box-shadow: none">
-          <img :src="mediaUrl(row.cover_url)" :alt="row.title" class="cart-thumb" />
-          <div class="grow">
-            <div style="font-weight: 700">{{ row.title }}</div>
-            <div class="meta">¥{{ row.price.toFixed(0) }} × {{ row.qty }}</div>
-          </div>
+      <div class="order-goods" @click="goDetail(order)">
+        <img :src="mediaUrl(order.items[0]?.cover_url)" :alt="order.items[0]?.title" />
+        <div class="grow">
+          <div class="goods-title">{{ order.items[0]?.title }}</div>
+          <div class="meta">{{ order.items[0]?.category }} · 共 {{ order.items.length }} 件</div>
+          <div class="meta">实付 ¥{{ Number(order.total).toFixed(2) }}</div>
+        </div>
+        <div class="goods-price">
+          <b>¥{{ Number(order.items[0]?.price || 0).toFixed(2) }}</b>
+          <span class="meta">x{{ order.items[0]?.qty || 1 }}</span>
         </div>
       </div>
 
-      <div class="meta" style="margin-top: 10px; gap: 12px; flex-wrap: wrap">
-        <span>{{ order.address?.name }} · {{ order.address?.region }} {{ order.address?.detail }}</span>
-        <span class="dot" />
-        <span>{{ order.payment }}</span>
-        <b class="price" style="margin-left: auto">¥{{ Number(order.total).toFixed(2) }}</b>
+      <div class="order-actions">
+        <button class="link" type="button" @click="goDetail(order)">更多</button>
+        <button class="btn ghost small" type="button" @click="goLogistics(order)">查看物流</button>
+        <button v-if="order.status === 'pending_payment'" class="btn small" type="button"
+                @click="pay(order)">立即支付</button>
+        <button v-if="order.status === 'pending_payment'" class="btn ghost small" type="button"
+                @click="cancel(order)">取消订单</button>
+        <button v-if="order.status === 'pending_receipt'" class="btn small" type="button"
+                @click="receive(order)">确认收货</button>
+        <button v-if="order.status === 'pending_review'" class="btn small" type="button"
+                @click="goDetail(order)">去评价</button>
+        <button v-if="order.status === 'completed'" class="btn ghost small" type="button"
+                @click="aftersale(order)">申请售后</button>
       </div>
-
-      <div style="display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end">
-        <button v-if="order.status === 'pending_payment'" class="link" type="button" @click="cancel(order)">取消订单</button>
-        <button v-if="order.status === 'pending_payment'" class="btn small" type="button" @click="pay(order)">去支付</button>
-        <button v-if="order.status === 'pending_shipment'" class="btn ghost small" type="button"
-                @click="toast.push('已提醒商家尽快发货')">提醒发货</button>
-        <button v-if="order.status === 'pending_receipt'" class="btn small" type="button" @click="receive(order)">确认收货</button>
-        <button v-if="order.status === 'pending_review'" class="btn small" type="button" @click="openReview(order)">去评价</button>
-        <button v-if="order.status === 'completed'" class="btn ghost small" type="button" @click="aftersale(order)">申请售后</button>
-      </div>
-    </div>
-
-    <div v-if="reviewing" class="section-card review-modal">
-      <div class="section-head" style="margin-bottom: 10px">
-        <h2>评价商品</h2>
-        <button class="link" type="button" @click="reviewing = null">关闭</button>
-      </div>
-      <div class="meta">{{ reviewing.items[0].title }}</div>
-      <div class="stars" style="margin: 10px 0; font-size: 26px">
-        <span v-for="n in 5" :key="n" :class="['star', draft.rating >= n ? 'full' : 'empty']"
-              style="cursor: pointer" @click="draft.rating = n">★</span>
-      </div>
-      <textarea v-model="draft.content" rows="3" placeholder="说说使用感受…"
-                style="width: 100%; border-radius: 12px; border: 1px solid var(--line); padding: 10px"></textarea>
-      <div class="review-pick">
-        <label class="btn ghost small" style="cursor: pointer">
-          ＋ 添加图片 / 视频
-          <input type="file" accept="image/*,video/mp4,video/webm" multiple hidden @change="pickMedia" />
-        </label>
-        <span v-for="(src, index) in attachments" :key="index" class="review-thumb">
-          <img v-if="src.startsWith('data:image')" :src="src" alt="" />
-          <video v-else :src="src" muted />
-        </span>
-      </div>
-      <button class="btn" type="button" style="margin-top: 10px" @click="submitReview">提交评价</button>
     </div>
   </section>
 </template>
