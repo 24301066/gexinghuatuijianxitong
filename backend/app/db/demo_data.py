@@ -54,6 +54,9 @@ EVENT_TYPES = ["view", "cart", "purchase", "rating"]
 EVENT_WEIGHTS = [0.72, 0.12, 0.10, 0.06]
 DEMO_PASSWORD = "demo1234"
 
+# 演示账号的默认手机号，便于走"忘记密码"流程
+DEMO_PHONES = {"demo": "13800000001", "admin": "13800000002"}
+
 
 def _money(value: float) -> float:
     return float(round(value + 0.9, 2))

@@ -66,6 +66,22 @@ def seed_demo(session: Session, *, seed: int | None = None, users: int = 200,
                   demo_data.dataset_fingerprint(item_rows, user_rows, event_rows))
 
 
+def ensure_demo_phones(session: Session) -> int:
+    """给 demo/admin 补上默认手机号（老库升级或账号缺手机号时）。"""
+    updated = 0
+    for username, phone in demo_data.DEMO_PHONES.items():
+        user = session.scalar(select(User).where(User.username == username))
+        if user is None:
+            continue
+        if not user.phone:
+            user.phone = phone
+            user.phone_verified = True
+            updated += 1
+    if updated:
+        session.commit()
+    return updated
+
+
 def _db_items(session: Session) -> list[dict]:
     return [
         {"item_id": row.item_id, "title": row.title, "category": row.category,
@@ -118,8 +134,9 @@ def ensure_seeded(session: Session, rec_config: dict) -> dict | None:
     demo = (rec_config.get("data") or {}).get("demo") or {}
     existing = session.scalar(select(func.count()).select_from(Item)) or 0
     if existing:
+        ensure_demo_phones(session)
         return seed_content(session, rec_config)
-    return seed_demo(
+    stats = seed_demo(
         session,
         seed=int(rec_config.get("seed", 20261029)),
         users=int(demo.get("users", 200)),
@@ -127,6 +144,8 @@ def ensure_seeded(session: Session, rec_config: dict) -> dict | None:
         events=int(demo.get("events", 12000)),
         posts=int(demo.get("posts", 60)),
     )
+    ensure_demo_phones(session)
+    return stats
 
 
 def main(argv: list[str] | None = None) -> int:
