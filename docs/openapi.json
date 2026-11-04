@@ -1464,6 +1464,34 @@
         "title": "RegisterIn",
         "type": "object"
       },
+      "ResetPasswordIn": {
+        "properties": {
+          "code": {
+            "maxLength": 8,
+            "minLength": 4,
+            "title": "Code",
+            "type": "string"
+          },
+          "new_password": {
+            "maxLength": 64,
+            "minLength": 6,
+            "title": "New Password",
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^1[3-9]\\d{9}$",
+            "title": "Phone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone",
+          "code",
+          "new_password"
+        ],
+        "title": "ResetPasswordIn",
+        "type": "object"
+      },
       "ReviewIn": {
         "properties": {
           "content": {
@@ -1682,7 +1710,7 @@
           },
           "purpose": {
             "default": "register",
-            "pattern": "^(register|login|bind)$",
+            "pattern": "^(register|login|bind|reset)$",
             "title": "Purpose",
             "type": "string"
           }
@@ -2388,6 +2416,47 @@
           }
         },
         "summary": "Register With Phone",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/reset-password": {
+      "post": {
+        "operationId": "reset_password_api_v1_auth_reset_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Password",
         "tags": [
           "auth"
         ]

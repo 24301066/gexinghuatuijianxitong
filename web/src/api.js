@@ -135,3 +135,6 @@ api.uploadAvatar = (dataUrl) => request('/me/avatar', { method: 'POST', body: { 
 api.avatarUrl = (userId) => `${BASE}/api/v1/media/avatar/${encodeURIComponent(userId)}`
 
 api.bindSocial = (provider, openId) => request('/me/social/bind', { method: 'POST', body: { provider, open_id: openId } })
+
+api.resetPassword = (phone, code, newPassword) =>
+  request('/auth/reset-password', { method: 'POST', body: { phone, code, new_password: newPassword }, auth: false })

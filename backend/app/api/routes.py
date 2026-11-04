@@ -1201,3 +1201,15 @@ def bind_social(payload: schemas.OAuthIn, db: Session = Depends(get_db),
                              open_id=open_id, phone=user.phone))
         db.flush()
     return schemas.SocialBindOut(provider=payload.provider, open_id=open_id)
+
+
+@router.post("/auth/reset-password", response_model=schemas.TokenOut, tags=["auth"])
+def reset_password(payload: schemas.ResetPasswordIn, db: Session = Depends(get_db),
+                   runtime: Runtime = Depends(get_runtime)) -> schemas.TokenOut:
+    _consume_sms_code(db, payload.phone, payload.code, "reset")
+    user = db.scalar(select(User).where(User.phone == payload.phone))
+    if user is None:
+        raise ApiError(404, "该手机号还没有注册")
+    user.password_hash = hash_password(payload.new_password)
+    db.flush()
+    return _token_for(runtime, user)

@@ -69,6 +69,14 @@ async function submit() {
     } else if (mode.value === 'code') {
       session.applyAuth(await api.loginPhone(form.phone, form.code))
     } else {
+      if (mode.value === 'reset') {
+        if (form.regPassword.length < 6) throw new Error('新密码至少 6 位')
+        if (form.regPassword !== form.regConfirm) throw new Error('两次密码不一致')
+        session.applyAuth(await api.resetPassword(form.phone, form.code, form.regPassword))
+        toast.push('密码已重置，已自动登录')
+        router.push(route.query.redirect || '/')
+        return
+      }
       if (form.regPassword.length < 6) throw new Error('密码至少 6 位')
       if (form.regPassword !== form.regConfirm) throw new Error('两次密码不一致')
       session.applyAuth(await api.registerPhone(form.phone, form.code,
@@ -157,7 +165,7 @@ onMounted(() => {
             <input v-model="form.password" type="password" autocomplete="current-password" placeholder="demo1234" />
           </div>
           <div class="login-links">
-            <button class="link red" type="button" @click="switchMode('code')">忘记密码</button>
+            <button class="link red" type="button" @click="switchMode('reset')">忘记密码</button>
             <span class="sep">｜</span>
             <button class="link red" type="button" @click="switchMode('code')">使用验证码登录</button>
           </div>
@@ -178,6 +186,29 @@ onMounted(() => {
           </div>
           <button class="link red" type="button" style="margin: 4px 0 12px"
                   @click="switchMode('password')">← 用密码登录</button>
+        </template>
+
+        <template v-else-if="mode === 'reset'">
+          <div class="field"><label>手机号</label>
+            <input v-model="form.phone" maxlength="11" inputmode="numeric" placeholder="注册时用的手机号" />
+          </div>
+          <div class="field"><label>验证码</label>
+            <div class="code-row">
+              <input v-model="form.code" maxlength="6" inputmode="numeric" placeholder="6 位验证码" />
+              <button class="btn ghost small" type="button" :disabled="countdown > 0"
+                      @click="sendCode(form.phone, 'reset')">
+                {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
+              </button>
+            </div>
+          </div>
+          <div class="field"><label>新密码</label>
+            <input v-model="form.regPassword" type="password" placeholder="至少 6 位" />
+          </div>
+          <div class="field"><label>确认新密码</label>
+            <input v-model="form.regConfirm" type="password" placeholder="再输一次" />
+          </div>
+          <button class="link red" type="button" style="margin: 4px 0 12px"
+                  @click="switchMode('password')">← 返回密码登录</button>
         </template>
 
         <template v-else>
@@ -212,6 +243,7 @@ onMounted(() => {
           {{ loading ? '请稍候…'
             : mode === 'password' ? '登录'
             : mode === 'code' ? '验证码登录'
+            : mode === 'reset' ? '重置密码并登录'
             : '注册并登录' }}
         </button>
       </form>

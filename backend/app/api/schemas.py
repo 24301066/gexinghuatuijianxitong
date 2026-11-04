@@ -268,7 +268,7 @@ class OrderOut(BaseModel):
 
 class SmsSendIn(BaseModel):
     phone: str = Field(pattern=r"^1[3-9]\d{9}$")
-    purpose: str = Field(default="register", pattern="^(register|login|bind)$")
+    purpose: str = Field(default="register", pattern="^(register|login|bind|reset)$")
 
 
 class SmsSendOut(BaseModel):
@@ -384,3 +384,9 @@ class SocialBindOut(BaseModel):
     provider: str
     open_id: str
     bound: bool = True
+
+
+class ResetPasswordIn(BaseModel):
+    phone: str = Field(pattern=r"^1[3-9]\d{9}$")
+    code: str = Field(min_length=4, max_length=8)
+    new_password: str = Field(min_length=6, max_length=64)
