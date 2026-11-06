@@ -57,10 +57,34 @@ class Runtime:
 
     SQLITE_HEADER = b"SQLite format 3\x00"
 
+    def _migrate_legacy_db(self) -> None:
+        """首次切到 D 盘数据目录时，把旧目录的数据库复制过来，避免用户丢数据。"""
+        db_path = self.settings.db_path
+        # 只在正式默认目录（D 盘）做一次性迁移，测试/自定义目录不迁移
+        if self.settings.data_dir.name != "GexingTuijianData":
+            return
+        if db_path.exists():
+            return
+        import os
+        import shutil
+
+        legacy = Path(os.environ.get("LOCALAPPDATA", "")) / "GexingTuijian" / "app.db"
+        if not legacy.is_file() or legacy.resolve() == db_path.resolve():
+            return
+        try:
+            shutil.copy2(legacy, db_path)
+            for suffix in ("-wal", "-shm"):
+                sidecar = legacy.with_name(legacy.name + suffix)
+                if sidecar.is_file():
+                    shutil.copy2(sidecar, db_path.with_name(db_path.name + suffix))
+        except OSError:
+            pass
+
     def _preflight_db(self) -> None:
         """Clear stale journals and move an obviously corrupt database aside."""
         if not self.settings.db_url.startswith("sqlite"):
             return
+        self._migrate_legacy_db()
         db_path = self.settings.db_path
         if not db_path.exists() or db_path.stat().st_size == 0:
             self._clear_journals(db_path)
