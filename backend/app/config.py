@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import secrets
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -102,6 +103,15 @@ def is_writable(path: Path) -> bool:
     except OSError:
         return False
 
+    def _retry_unlink(target: Path, attempts: int = 6) -> bool:
+        for _ in range(attempts):
+            try:
+                target.unlink(missing_ok=True)
+                return True
+            except OSError:
+                time.sleep(0.2)
+        return not target.exists()
+
     db_file = path / ".probe.db"
     try:
         connection = sqlite3.connect(str(db_file), timeout=5)
@@ -113,12 +123,11 @@ def is_writable(path: Path) -> bool:
             connection.commit()
         finally:
             connection.close()
-        db_file.unlink()
+        # 杀软/索引服务可能短暂占用新生成的 .db，删不掉不代表目录不可用
+        deleted = _retry_unlink(db_file)
         for suffix in ("-journal", "-wal", "-shm"):
-            sidecar = db_file.with_name(db_file.name + suffix)
-            if sidecar.exists():
-                sidecar.unlink()
-        return True
+            _retry_unlink(db_file.with_name(db_file.name + suffix))
+        return True if deleted else True
     except (OSError, sqlite3.Error):
         for suffix in ("", "-journal", "-wal", "-shm"):
             leftover = db_file.with_name(db_file.name + suffix) if suffix else db_file
@@ -203,6 +212,17 @@ def resolve_data_dir(explicit: Path | None = None,
         tried.append(candidate)
         if is_writable(candidate):
             return candidate
+    # 兜底：SQLite 探测全部失败（常见于杀软实时扫描占用新文件）时，
+    # 只要「能建目录 + 能写文件」就先让程序起来，运行期再靠重试与坏库隔离兜底
+    for candidate in pool:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".write-probe"
+            probe.write_text("probe", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            return candidate
+        except OSError:
+            continue
     raise DataDirError(tried)
 
 
