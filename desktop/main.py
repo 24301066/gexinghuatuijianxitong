@@ -215,11 +215,40 @@ def webview2_available() -> bool:
     return False
 
 
+def _prepare_webview_cache(data_directory: Path) -> None:
+    """每次构建版本变化时清空 WebView2 缓存，保证启动加载的是最新前端。"""
+    import hashlib
+    import shutil
+
+    from app.config import resource_path
+
+    index = Path(resource_path("web/dist/index.html"))
+    if not index.is_file():
+        return
+    digest = hashlib.sha1(index.read_bytes()).hexdigest()[:16]
+    root = data_directory / "webview2"
+    marker = root / ".build-id"
+    try:
+        if marker.is_file() and marker.read_text(encoding="utf-8").strip() == digest:
+            return
+    except OSError:
+        pass
+    for name in ("EBWebView/Default/Cache", "EBWebView/Default/Code Cache",
+                 "EBWebView/Default/GPUCache", "EBWebView/Default/Service Worker"):
+        shutil.rmtree(root / name, ignore_errors=True)
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        marker.write_text(digest, encoding="utf-8")
+    except OSError:
+        pass
+
+
 def run_window(url: str, data_directory: Path, server, thread) -> int:
     import wx
     import wx.html2
 
     os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", str(data_directory / "webview2"))
+    _prepare_webview_cache(data_directory)
     log_file = data_directory / "logs" / "webview.log"
 
     def wlog(message: str) -> None:
