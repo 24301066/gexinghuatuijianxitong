@@ -732,16 +732,26 @@ def create_order(payload: schemas.OrderIn, db: Session = Depends(get_db),
         raise ApiError(422, "购物车里没有勾选商品")
     items = []
     total = 0.0
+    merchant_cache: dict[str, dict] = {}
     for row in rows:
         item = db.get(Item, row.item_id)
         if item is None:
             continue
+        if item.category not in merchant_cache:
+            merchant = db.scalar(select(Merchant).where(Merchant.category == item.category))
+            merchant_cache[item.category] = {
+                "id": merchant.merchant_id if merchant else "",
+                "name": merchant.name if merchant else "",
+            }
+        merchant_id = merchant_cache[item.category]["id"]
+        merchant_name = merchant_cache[item.category]["name"]
         total += float(item.price) * int(row.qty)
         items.append(schemas.CartRowOut(item_id=item.item_id, title=item.title,
                                         price=float(item.price),
                                         cover_url=_cover_url("product", item.item_id),
                                         category=item.category, qty=int(row.qty),
-                                        checked=True).model_dump())
+                                        checked=True, merchant_id=merchant_id,
+                                        merchant_name=merchant_name).model_dump())
     order = Order(order_id=f"GT{int(utcnow().timestamp())}{uuid4().hex[:6]}".upper(),
                   user_id=user.user_id, status="pending_payment",
                   payment=payload.payment, total=total,

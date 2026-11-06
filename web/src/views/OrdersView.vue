@@ -40,8 +40,10 @@ function pick(key) {
 }
 
 function shopName(order) {
-  const category = order.items?.[0]?.category || ''
-  return category ? `${category}官方旗舰店` : '种草集自营'
+  const first = order.items?.[0] || {}
+  if (first.merchant_name) return first.merchant_name
+  const category = first.category || ''
+  return category ? `${category}旗舰店` : '种草集自营'
 }
 
 async function run(order, action, message) {

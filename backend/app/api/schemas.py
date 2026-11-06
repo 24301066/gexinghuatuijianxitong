@@ -225,6 +225,8 @@ class CartRowOut(BaseModel):
     category: str
     qty: int
     checked: bool
+    merchant_id: str = ""
+    merchant_name: str = ""
 
 
 class FavoriteRowOut(BaseModel):

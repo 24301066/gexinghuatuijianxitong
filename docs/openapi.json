@@ -328,6 +328,16 @@
             "title": "Item Id",
             "type": "string"
           },
+          "merchant_id": {
+            "default": "",
+            "title": "Merchant Id",
+            "type": "string"
+          },
+          "merchant_name": {
+            "default": "",
+            "title": "Merchant Name",
+            "type": "string"
+          },
           "price": {
             "title": "Price",
             "type": "number"
