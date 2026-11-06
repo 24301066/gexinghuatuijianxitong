@@ -179,7 +179,9 @@ def data_dir_candidates(explicit: Path | None = None,
     temp = os.environ.get("TEMP") or os.environ.get("TMP")
     if temp:
         candidates.append(Path(temp) / "GexingTuijian")
-    if not portable_first:
+    # remove late portable fallback: 只有当用户显式 --portable 时才用 exe 目录，
+    # 否则 exe 所在目录（可能继承受限 ACL）会拖垮 SQLite 的 journal 写入
+    if portable_first and portable not in candidates:
         candidates.append(portable)
 
     seen: set[str] = set()
