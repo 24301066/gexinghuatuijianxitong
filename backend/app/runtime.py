@@ -125,7 +125,16 @@ class Runtime:
             with self.session_factory() as session:
                 return ensure_seeded(session, self.settings.rec)
 
-        self.seed_stats = retry_sqlite(_seed)
+        try:
+            self.seed_stats = retry_sqlite(_seed)
+        except OperationalError:
+            # 数据库文件不可写/被占用/损坏：隔离旧文件后重建再试一次（seed rebuild）
+            self.engine.dispose()
+            self.quarantined = self._quarantine_db()
+            self.engine = make_engine(self.settings.db_url)
+            self.session_factory = make_session_factory(self.engine)
+            retry_sqlite(lambda: init_db(self.engine))
+            self.seed_stats = retry_sqlite(_seed)
         marker = self._marker_path()
         if self.seed_stats:
             try:
