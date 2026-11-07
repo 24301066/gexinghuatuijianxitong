@@ -80,62 +80,37 @@ class Settings:
 class DataDirError(RuntimeError):
     """No writable data directory was found."""
 
-    def __init__(self, tried: list[Path]) -> None:
+    def __init__(self, tried: list[Path], reasons: list[str] | None = None) -> None:
         self.tried = tried
+        self.reasons = reasons or []
         super().__init__("没有可写的数据目录：" + "; ".join(str(path) for path in tried))
 
 
+_PROBE_REASONS: list[str] = []
+
+
 def is_writable(path: Path) -> bool:
-    """Prove the directory works for a SQLite database, not just for one file.
-
-    SQLite creates and *deletes* a rollback journal on every transaction, so a
-    directory that allows writes but denies deletes (e.g. an ACL inherited from a
-    sandboxed parent folder) looks writable yet breaks at the first commit with
-    ``sqlite3.OperationalError: unable to open database file``.
-    """
-    import sqlite3
-
+    """轻量可写性检查：建目录 → 写文件 → 删文件（SQLite 探测太脆弱，改为运行期兜底）。"""
+    _PROBE_REASONS.clear()
     try:
         path.mkdir(parents=True, exist_ok=True)
-        probe = path / ".write-probe"
-        probe.write_text("probe", encoding="utf-8")
-        probe.unlink()
-    except OSError:
+    except OSError as exc:
+        _PROBE_REASONS.append(f"{path}: mkdir failed: {exc}")
         return False
-
-    def _retry_unlink(target: Path, attempts: int = 6) -> bool:
-        for _ in range(attempts):
-            try:
-                target.unlink(missing_ok=True)
-                return True
-            except OSError:
-                time.sleep(0.2)
-        return not target.exists()
-
-    db_file = path / ".probe.db"
+    probe = path / ".write-probe"
     try:
-        connection = sqlite3.connect(str(db_file), timeout=5)
-        try:
-            connection.execute("CREATE TABLE probe (x INTEGER)")
-            connection.execute("INSERT INTO probe (x) VALUES (1)")
-            connection.commit()
-            connection.execute("DELETE FROM probe")
-            connection.commit()
-        finally:
-            connection.close()
-        # 杀软/索引服务可能短暂占用新生成的 .db，删不掉不代表目录不可用
-        deleted = _retry_unlink(db_file)
-        for suffix in ("-journal", "-wal", "-shm"):
-            _retry_unlink(db_file.with_name(db_file.name + suffix))
-        return True if deleted else True
-    except (OSError, sqlite3.Error):
-        for suffix in ("", "-journal", "-wal", "-shm"):
-            leftover = db_file.with_name(db_file.name + suffix) if suffix else db_file
-            try:
-                leftover.unlink()
-            except OSError:
-                pass
+        probe.write_text("probe", encoding="utf-8")
+    except OSError as exc:
+        _PROBE_REASONS.append(f"{path}: write failed: {exc}")
         return False
+    for _ in range(8):
+        try:
+            probe.unlink(missing_ok=True)
+            return True
+        except OSError:
+            time.sleep(0.2)
+    _PROBE_REASONS.append(f"{path}: delete failed (file locked)")
+    return True
 
 
 def _frozen() -> bool:
@@ -214,11 +189,13 @@ def resolve_data_dir(explicit: Path | None = None,
                      candidates: list[Path] | None = None,
                      portable_first: bool = False) -> Path:
     tried: list[Path] = []
+    reasons: list[str] = []
     pool = candidates if candidates is not None else data_dir_candidates(explicit, portable_first)
     for candidate in pool:
         tried.append(candidate)
         if is_writable(candidate):
             return candidate
+        reasons.extend(_PROBE_REASONS)
     # 兜底：SQLite 探测全部失败（常见于杀软实时扫描占用新文件）时，
     # 只要「能建目录 + 能写文件」就先让程序起来，运行期再靠重试与坏库隔离兜底
     for candidate in pool:
@@ -230,7 +207,12 @@ def resolve_data_dir(explicit: Path | None = None,
             return candidate
         except OSError:
             continue
-    raise DataDirError(tried)
+    try:
+        Path(os.environ.get("TEMP", ".")).joinpath("GexingTuijian-probe.log").write_text(
+            "\n".join(reasons), encoding="utf-8")
+    except OSError:
+        pass
+    raise DataDirError(tried, reasons)
 
 
 def default_data_dir() -> Path:
