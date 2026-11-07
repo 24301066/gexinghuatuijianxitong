@@ -188,6 +188,13 @@ def data_dir_candidates(explicit: Path | None = None,
     temp = os.environ.get("TEMP") or os.environ.get("TMP")
     if temp:
         candidates.append(Path(temp) / "GexingTuijian")
+    # 用户目录可能被杀软/组策略锁住，公共目录通常可写，作为后续兜底
+    public = os.environ.get("PUBLIC")
+    if public:
+        candidates.append(Path(public) / "GexingTuijian")
+    programdata = os.environ.get("PROGRAMDATA")
+    if programdata:
+        candidates.append(Path(programdata) / "GexingTuijian")
     # remove late portable fallback: 只有当用户显式 --portable 时才用 exe 目录，
     # 否则 exe 所在目录（可能继承受限 ACL）会拖垮 SQLite 的 journal 写入
     if portable_first and portable not in candidates:

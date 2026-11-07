@@ -397,6 +397,11 @@ def _resolve_dir(explicit: Path | None, portable_first: bool = False) -> Path | 
         return resolve_data_dir(explicit, portable_first=portable_first)
     except DataDirError as exc:
         tried = "\n".join(f"  · {path}" for path in exc.tried)
+        try:
+            Path(__file__).resolve().parent.joinpath("datadir-probe.log").write_text(
+                "no writable data directory\n" + tried, encoding="utf-8")
+        except OSError:
+            pass
         log_lines(["no writable data directory"] + [str(path) for path in exc.tried])
         show_message(
             "无法创建数据目录，程序无法启动。\n\n"
