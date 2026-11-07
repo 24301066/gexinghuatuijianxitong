@@ -215,40 +215,11 @@ def webview2_available() -> bool:
     return False
 
 
-def _prepare_webview_cache(data_directory: Path) -> None:
-    """每次构建版本变化时清空 WebView2 缓存，保证启动加载的是最新前端。"""
-    import hashlib
-    import shutil
-
-    from app.config import resource_path
-
-    index = Path(resource_path("web/dist/index.html"))
-    if not index.is_file():
-        return
-    digest = hashlib.sha1(index.read_bytes()).hexdigest()[:16]
-    root = data_directory / "webview2"
-    marker = root / ".build-id"
-    try:
-        if marker.is_file() and marker.read_text(encoding="utf-8").strip() == digest:
-            return
-    except OSError:
-        pass
-    for name in ("EBWebView/Default/Cache", "EBWebView/Default/Code Cache",
-                 "EBWebView/Default/GPUCache", "EBWebView/Default/Service Worker"):
-        shutil.rmtree(root / name, ignore_errors=True)
-    try:
-        root.mkdir(parents=True, exist_ok=True)
-        marker.write_text(digest, encoding="utf-8")
-    except OSError:
-        pass
-
-
 def run_window(url: str, data_directory: Path, server, thread) -> int:
     import wx
     import wx.html2
 
     os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", str(data_directory / "webview2"))
-    _prepare_webview_cache(data_directory)
     log_file = data_directory / "logs" / "webview.log"
 
     def wlog(message: str) -> None:
@@ -397,21 +368,14 @@ def _resolve_dir(explicit: Path | None, portable_first: bool = False) -> Path | 
         return resolve_data_dir(explicit, portable_first=portable_first)
     except DataDirError as exc:
         tried = "\n".join(f"  · {path}" for path in exc.tried)
-        try:
-            Path(__file__).resolve().parent.joinpath("datadir-probe.log").write_text(
-                "no writable data directory\n" + tried, encoding="utf-8")
-        except OSError:
-            pass
         log_lines(["no writable data directory"] + [str(path) for path in exc.tried])
-        detail = "\n".join(getattr(exc, "reasons", [])[:6])
         show_message(
             "无法创建数据目录，程序无法启动。\n\n"
-            + (f"具体原因：\n{detail}\n\n" if detail else "")
-            + f"尝试过的位置：\n{tried}\n\n"
-            + "可以这样做：\n"
-            + "1. 在命令提示符里运行：GexingTuijian.exe --data-dir D:\\GexingTuijian\n"
-            + "2. 或者设置环境变量 APP_DATA_DIR 指向一个可写目录\n"
-            + "3. 检查是否被安全软件/权限策略拦截了该目录",
+            f"尝试过的位置：\n{tried}\n\n"
+            "可以这样做：\n"
+            "1. 在命令提示符里运行：GexingTuijian.exe --data-dir D:\\GexingTuijian\n"
+            "2. 或者设置环境变量 APP_DATA_DIR 指向一个可写目录\n"
+            "3. 检查是否被安全软件/权限策略拦截了该目录",
             caption=f"{app_core.APP_TITLE} · 启动失败",
         )
         return None

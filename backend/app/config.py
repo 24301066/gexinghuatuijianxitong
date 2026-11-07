@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import secrets
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -80,37 +79,54 @@ class Settings:
 class DataDirError(RuntimeError):
     """No writable data directory was found."""
 
-    def __init__(self, tried: list[Path], reasons: list[str] | None = None) -> None:
+    def __init__(self, tried: list[Path]) -> None:
         self.tried = tried
-        self.reasons = reasons or []
         super().__init__("没有可写的数据目录：" + "; ".join(str(path) for path in tried))
 
 
-_PROBE_REASONS: list[str] = []
-
-
 def is_writable(path: Path) -> bool:
-    """轻量可写性检查：建目录 → 写文件 → 删文件（SQLite 探测太脆弱，改为运行期兜底）。"""
-    _PROBE_REASONS.clear()
+    """Prove the directory works for a SQLite database, not just for one file.
+
+    SQLite creates and *deletes* a rollback journal on every transaction, so a
+    directory that allows writes but denies deletes (e.g. an ACL inherited from a
+    sandboxed parent folder) looks writable yet breaks at the first commit with
+    ``sqlite3.OperationalError: unable to open database file``.
+    """
+    import sqlite3
+
     try:
         path.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        _PROBE_REASONS.append(f"{path}: mkdir failed: {exc}")
-        return False
-    probe = path / ".write-probe"
-    try:
+        probe = path / ".write-probe"
         probe.write_text("probe", encoding="utf-8")
-    except OSError as exc:
-        _PROBE_REASONS.append(f"{path}: write failed: {exc}")
+        probe.unlink()
+    except OSError:
         return False
-    for _ in range(8):
+
+    db_file = path / ".probe.db"
+    try:
+        connection = sqlite3.connect(str(db_file), timeout=5)
         try:
-            probe.unlink(missing_ok=True)
-            return True
-        except OSError:
-            time.sleep(0.2)
-    _PROBE_REASONS.append(f"{path}: delete failed (file locked)")
-    return True
+            connection.execute("CREATE TABLE probe (x INTEGER)")
+            connection.execute("INSERT INTO probe (x) VALUES (1)")
+            connection.commit()
+            connection.execute("DELETE FROM probe")
+            connection.commit()
+        finally:
+            connection.close()
+        db_file.unlink()
+        for suffix in ("-journal", "-wal", "-shm"):
+            sidecar = db_file.with_name(db_file.name + suffix)
+            if sidecar.exists():
+                sidecar.unlink()
+        return True
+    except (OSError, sqlite3.Error):
+        for suffix in ("", "-journal", "-wal", "-shm"):
+            leftover = db_file.with_name(db_file.name + suffix) if suffix else db_file
+            try:
+                leftover.unlink()
+            except OSError:
+                pass
+        return False
 
 
 def _frozen() -> bool:
@@ -163,16 +179,7 @@ def data_dir_candidates(explicit: Path | None = None,
     temp = os.environ.get("TEMP") or os.environ.get("TMP")
     if temp:
         candidates.append(Path(temp) / "GexingTuijian")
-    # 用户目录可能被杀软/组策略锁住，公共目录通常可写，作为后续兜底
-    public = os.environ.get("PUBLIC")
-    if public:
-        candidates.append(Path(public) / "GexingTuijian")
-    programdata = os.environ.get("PROGRAMDATA")
-    if programdata:
-        candidates.append(Path(programdata) / "GexingTuijian")
-    # remove late portable fallback: 只有当用户显式 --portable 时才用 exe 目录，
-    # 否则 exe 所在目录（可能继承受限 ACL）会拖垮 SQLite 的 journal 写入
-    if portable_first and portable not in candidates:
+    if not portable_first:
         candidates.append(portable)
 
     seen: set[str] = set()
@@ -189,30 +196,12 @@ def resolve_data_dir(explicit: Path | None = None,
                      candidates: list[Path] | None = None,
                      portable_first: bool = False) -> Path:
     tried: list[Path] = []
-    reasons: list[str] = []
     pool = candidates if candidates is not None else data_dir_candidates(explicit, portable_first)
     for candidate in pool:
         tried.append(candidate)
         if is_writable(candidate):
             return candidate
-        reasons.extend(_PROBE_REASONS)
-    # 兜底：SQLite 探测全部失败（常见于杀软实时扫描占用新文件）时，
-    # 只要「能建目录 + 能写文件」就先让程序起来，运行期再靠重试与坏库隔离兜底
-    for candidate in pool:
-        try:
-            candidate.mkdir(parents=True, exist_ok=True)
-            probe = candidate / ".write-probe"
-            probe.write_text("probe", encoding="utf-8")
-            probe.unlink(missing_ok=True)
-            return candidate
-        except OSError:
-            continue
-    try:
-        Path(os.environ.get("TEMP", ".")).joinpath("GexingTuijian-probe.log").write_text(
-            "\n".join(reasons), encoding="utf-8")
-    except OSError:
-        pass
-    raise DataDirError(tried, reasons)
+    raise DataDirError(tried)
 
 
 def default_data_dir() -> Path:
