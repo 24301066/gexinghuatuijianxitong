@@ -136,6 +136,13 @@ def register(payload: schemas.RegisterIn, db: Session = Depends(get_db),
                                                  username=user.username, role=user.role))
 
 
+@router.post("/auth/refresh", response_model=schemas.TokenOut, tags=["auth"])
+def refresh_token(user: User = Depends(current_user),
+                  runtime: Runtime = Depends(get_runtime)) -> schemas.TokenOut:
+    """滑动续期：用当前令牌换一个新令牌，避免活跃用户被迫重新登录。"""
+    return _token_for(runtime, user)
+
+
 @router.get("/auth/me", response_model=schemas.UserOut, tags=["auth"])
 def me(user: User = Depends(current_user)) -> schemas.UserOut:
     return schemas.UserOut(user_id=user.user_id, username=user.username, role=user.role)

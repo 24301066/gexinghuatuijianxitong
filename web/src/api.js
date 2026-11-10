@@ -138,3 +138,5 @@ api.bindSocial = (provider, openId) => request('/me/social/bind', { method: 'POS
 
 api.resetPassword = (phone, code, newPassword) =>
   request('/auth/reset-password', { method: 'POST', body: { phone, code, new_password: newPassword }, auth: false })
+
+api.refreshToken = () => request('/auth/refresh', { method: 'POST' })

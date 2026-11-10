@@ -2349,6 +2349,28 @@
         ]
       }
     },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "description": "滑动续期：用当前令牌换一个新令牌，避免活跃用户被迫重新登录。",
+        "operationId": "refresh_token_api_v1_auth_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Refresh Token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/register": {
       "post": {
         "operationId": "register_api_v1_auth_register_post",

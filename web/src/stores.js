@@ -12,6 +12,20 @@ export const useSessionStore = defineStore('session', {
     loggedIn: (state) => Boolean(state.token)
   },
   actions: {
+    async refresh() {
+      if (!this.token) return
+      try {
+        const result = await api.refreshToken()
+        this.applyAuth(result)
+      } catch (error) {
+        if (error.status === 401) {
+          this.token = ''
+          this.user = null
+          localStorage.removeItem('gt_token')
+          localStorage.removeItem('gt_user')
+        }
+      }
+    },
     applyAuth(result) {
       this.token = result.token
       this.user = result.user
