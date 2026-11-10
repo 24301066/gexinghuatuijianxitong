@@ -71,6 +71,15 @@ const cancelAftersale = (order) => run(order, 'cancel_aftersale', '已取消售�
 const refund = (order) => run(order, 'refund', '退款成功，已原路退回')
 const deleteAftersale = (order) => run(order, 'delete_aftersale', '售后单已删除')
 
+function goChat(order) {
+  router.push({ name: 'chat', params: { id: 'service' } })
+}
+
+function moneyDetail(order) {
+  const amount = Number(order.total || 0).toFixed(2)
+  toast.push(`退款 ¥${amount} 已原路退回微信支付（零钱通）`)
+}
+
 function goDetail(order) {
   router.push({ name: 'order-detail', params: { id: order.id } })
 }
@@ -129,7 +138,10 @@ onMounted(() => { shop.loadOrders('all') })
 
       <div class="order-actions">
         <button class="link" type="button" @click="goDetail(order)">更多</button>
-        <button class="btn ghost small" type="button" @click="goLogistics(order)">查看物流</button>
+        <button v-if="AFTersale_STATUSES.includes(order.status)" class="btn ghost small"
+                type="button" @click="goChat(order)">联系商家</button>
+        <button v-if="order.status === 'refunded'" class="btn ghost small" type="button"
+                @click="moneyDetail(order)">钱款明细</button>
         <button v-if="order.status === 'pending_payment'" class="btn small" type="button"
                 @click="pay(order)">立即支付</button>
         <button v-if="order.status === 'pending_payment'" class="btn ghost small" type="button"
@@ -148,6 +160,7 @@ onMounted(() => { shop.loadOrders('all') })
                 @click="aftersale(order)">重新申请</button>
         <button v-if="order.status === 'refunded'" class="btn ghost small" type="button"
                 @click="deleteAftersale(order)">删除售后单</button>
+        <button class="btn ghost small" type="button" @click="goLogistics(order)">查看物流</button>
       </div>
     </div>
   </section>
