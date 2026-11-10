@@ -160,7 +160,8 @@ onMounted(() => { shop.loadOrders('all') })
                 @click="aftersale(order)">重新申请</button>
         <button v-if="order.status === 'refunded'" class="btn ghost small" type="button"
                 @click="deleteAftersale(order)">删除售后单</button>
-        <button class="btn ghost small" type="button" @click="goLogistics(order)">查看物流</button>
+        <button v-if="order.status !== 'refunded'" class="btn ghost small"
+                type="button" @click="goLogistics(order)">查看物流</button>
       </div>
     </div>
   </section>
