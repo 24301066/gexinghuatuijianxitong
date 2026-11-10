@@ -781,7 +781,9 @@ def update_order(order_id: str, action: str, db: Session = Depends(get_db),
         raise ApiError(404, "订单不存在")
     transitions = {"pay": "pending_shipment", "ship": "pending_receipt",
                    "receive": "pending_review", "review": "completed",
-                   "cancel": "cancelled", "aftersale": "aftersale"}
+                   "cancel": "cancelled", "aftersale": "aftersale",
+                   "cancel_aftersale": "aftersale_cancelled",
+                   "refund": "refunded", "delete_aftersale": "completed"}
     if action not in transitions:
         raise ApiError(422, f"未知操作 {action}")
     order.status = transitions[action]

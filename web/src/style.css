@@ -671,3 +671,8 @@ button, input, select { font: inherit; color: inherit; }
 .timeline-item.done { opacity: 1; }
 .timeline-dot { width: 10px; height: 10px; border-radius: 50%; background: #cfc5b8; margin-top: 6px; flex: 0 0 auto; }
 .timeline-item.done .timeline-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+
+.aftersale-strip { margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+  background: #f6f4f0; color: #6b5f52; font-size: 13px; line-height: 1.5; }
+.aftersale-strip b { color: #c2402a; }
