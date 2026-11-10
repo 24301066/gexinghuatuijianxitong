@@ -11,7 +11,7 @@ import time
 from typing import Any
 
 PBKDF2_ROUNDS = 120_000
-TOKEN_TTL_SECONDS = 12 * 60 * 60
+TOKEN_TTL_SECONDS = 30 * 24 * 3600  # 30 天免登录
 
 
 def _b64e(raw: bytes) -> str:
